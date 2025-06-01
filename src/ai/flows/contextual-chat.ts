@@ -59,6 +59,7 @@ You likely CANNOT answer directly (canAnswer: false) and would need to search if
 - Real-time data not covered by your specific tools (e.g., highly dynamic stock prices, current weather beyond generalities).
 - Obscure, niche, or highly specialized facts not part of common knowledge.
 - Detailed, up-to-the-minute information about specific individuals, organizations, products, or current affairs.
+- Questions about specific places, businesses, or local information that requires up-to-date details (e.g., "best restaurant in X", "opening hours for Y museum", "tourist attractions in Z city").
 - Any query where the accuracy or completeness of your internal knowledge is uncertain due to its specificity or recency.
 
 Err on the side of caution: if there's significant doubt about your ability to provide a complete, accurate, and up-to-date answer from your internal knowledge, respond with canAnswer: false.
@@ -213,29 +214,23 @@ const contextualChatFlow = ai.defineFlow(
     outputSchema: ContextualChatOutputSchema, // Uses the new output schema
   },
   async (input) => {
-    // Only pass the message to the assessment prompt as per its schema
     const assessmentInput: z.infer<typeof CanAnswerDirectlyInputSchema> = { 
       message: input.message 
     };
     const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
 
-    // Default to searching if assessmentOutput is null/undefined or explicitly says cannot answer.
     if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
-      // Aizen assesses it cannot answer directly / needs a search, or assessment failed.
-      let firstResponse = "I am not immediately familiar with that. Allow me to consult my knowledge base.";
+      let firstResponse = "Searching for that information..."; // Default brief message
       if (input.tone === "Concise" || input.answerLength === "Brief") {
-          firstResponse = "Let me check that for you.";
+          firstResponse = "Searching...";
       } else if (input.tone === "Formal") {
-          firstResponse = "Permit me a moment to consult available knowledge on this topic."
+          firstResponse = "I will search for that information now.";
       }
-      // Could further customize 'firstResponse' using another LLM call for persona consistency if needed.
-
+      
       const searchResult = await internetSearchTool({ query: input.message });
       
       return { responses: [firstResponse, searchResult] };
     } else {
-      // Aizen believes it can answer directly (assessmentOutput.canAnswer is true).
-      // Call the main prompt. It might still use non-search tools like calculator.
       const { output: mainPromptOutput } = await prompt(input);
       return { responses: [mainPromptOutput!.response] };
     }
