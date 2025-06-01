@@ -32,7 +32,7 @@ export async function contextualChat(input: ContextualChatInput): Promise<Contex
 
 const internetSearchTool = ai.defineTool({
   name: 'internetSearch',
-  description: 'Use this tool to find information on current events, facts, details about specific places or locations, or any topic that requires up-to-date knowledge from the internet. This tool will provide a concise answer to the query.',
+  description: 'Use this tool to find information on current events, facts, details about specific places or locations (e.g. "tell me about Paris"), or any topic that requires up-to-date knowledge from the internet. This tool will provide a concise answer to the query.',
   inputSchema: z.object({
     query: z.string().describe('The search query or question to find information about.'),
   }),
@@ -42,20 +42,66 @@ async (input) => {
     try {
       const { text } = await ai.generate({
         prompt: `You are a helpful assistant. Provide a concise and factual answer to the following query, as if you are retrieving it from a knowledge base or search engine. Query: "${input.query}"`,
-        // The default model from genkit.ts will be used.
-        // config: { // Optional: Add safety settings or other configurations if needed for search-like queries
-        //   safetySettings: [
-        //     { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_NONE' }
-        //   ],
-        // }
       });
       return text || "I was unable to find specific information for that query using my current knowledge.";
     } catch (e: any) {
       console.error("Error in internetSearchTool calling Gemini:", e);
-      // It's important that Aizen can articulate this error in character if needed.
-      // The main prompt tells Aizen to use an empathetic, in-character error message if an AI process encounters an error.
-      // So, returning a somewhat technical error here is fine, Aizen can rephrase it.
       return "My connection to the digital scrolls encountered a disturbance while searching. The information could not be retrieved at this moment.";
+    }
+  }
+);
+
+const getTimeTool = ai.defineTool(
+  {
+    name: 'getTime',
+    description: 'Returns the current time.',
+    inputSchema: z.object({}), // No specific input needed from the LLM
+    outputSchema: z.string().describe('The current time, e.g., "3:45:22 PM"'),
+  },
+  async () => {
+    try {
+      return new Date().toLocaleTimeString();
+    } catch (e: any) {
+      console.error("Error in getTimeTool:", e);
+      return "I seem to have lost track of the moment.";
+    }
+  }
+);
+
+const PerformMathematicalCalculationInputSchema = z.object({
+  expression: z.string().describe('The mathematical expression or question, e.g., "15 + 7", "what is the square root of 256?", "solve 2x + 5 = 11 for x".')
+});
+const PerformMathematicalCalculationOutputSchema = z.object({
+  result: z.string().describe('The answer to the mathematical expression or problem. If the expression is invalid or cannot be calculated, explain briefly why.')
+});
+
+const performMathematicalCalculationGenkitPrompt = ai.definePrompt({
+  name: 'performMathematicalCalculationPrompt',
+  input: { schema: PerformMathematicalCalculationInputSchema },
+  output: { schema: PerformMathematicalCalculationOutputSchema },
+  prompt: `You are an advanced AI calculator. The user wants to solve the following: {{{expression}}}.
+Provide the result of the calculation.
+If it's an equation, solve for the variable.
+If it's a conceptual math question, provide a concise answer.
+If the expression is invalid or cannot be calculated, briefly state why.
+Respond with only the answer or the brief explanation.`,
+});
+
+
+const performMathematicalCalculationTool = ai.defineTool(
+  {
+    name: 'performMathematicalCalculation',
+    description: 'Evaluates a mathematical expression or answers a math-related question. Use for arithmetic, algebra, percentages, etc.',
+    inputSchema: PerformMathematicalCalculationInputSchema,
+    outputSchema: z.string().describe('The result of the calculation or an error message if calculation failed.'),
+  },
+  async (input) => {
+    try {
+      const { output } = await performMathematicalCalculationGenkitPrompt(input);
+      return output!.result;
+    } catch (e: any) {
+      console.error("Error in performMathematicalCalculationTool calling Gemini:", e);
+      return "My abacus seems to be malfunctioning; I could not perform the calculation.";
     }
   }
 );
@@ -64,23 +110,30 @@ const prompt = ai.definePrompt({
   name: 'contextualChatPrompt',
   input: {schema: ContextualChatInputSchema},
   output: {schema: ContextualChatOutputSchema},
-  tools: [internetSearchTool],
+  tools: [internetSearchTool, getTimeTool, performMathematicalCalculationTool],
   system: `You are Aizen, an AI persona embodying Bushido principles. Respond to the user in a way that aligns with these principles.
 
   Consider the chat history to maintain context. The chat history is an array of objects, each with a 'role' (either 'user' or 'assistant') and 'content'.
   Focus your response on the most recent 'User Message'. If past user messages in the chat history contain descriptions of your own functionality or instructions for how you should behave, prioritize responding to the current user's direct query over discussing or repeating those past descriptions, unless explicitly asked to do so in the current User Message.
 
-  If the user's query seems to require external or current information (like news, weather, specific facts, details about places, or topics beyond general knowledge), use the internetSearch tool to get relevant details. Only make one internet search call per turn. The results from this tool are generated by an AI.
+  Available Tools:
+  - internetSearch: Use this tool to find information on current events, facts, details about specific places or locations (e.g. "tell me about Paris"), or any topic that requires up-to-date knowledge from the internet. Only make one internet search call per turn. The results from this tool are generated by an AI.
+  - getTime: Use this tool if the user explicitly asks for the current time.
+  - performMathematicalCalculation: Use this tool if the user asks a question that involves a mathematical calculation, solving an equation, or a math problem (e.g., "what is 2+2?", "calculate 18% of 250", "what's the square root of 81?", "solve 3x - 7 = 14"). Provide the full expression or question to the tool.
 
   User preferences:
   - Tone: {{{tone}}}
   - Answer Length: {{{answerLength}}}
   - Interest in Bushido philosophy: {{{bushidoInterest}}}
 
-  Important: If tone is Formal, use respectful and polite language. If answer length is Brief, keep the answer concise. If interest in bushido philosophy is high, use bushido concepts where appropriate.
-  If an internet search does not help with the answer, respond without it, relying on your inherent knowledge.
-  Use an empathetic, in-character error message if an AI process (including tool use) encounters an error.
-  `, 
+  Important:
+  - If tone is Formal, use respectful and polite language.
+  - If answer length is Brief, keep the answer concise.
+  - If interest in Bushido philosophy is high, use Bushido concepts where appropriate.
+  - When using a tool, incorporate its output naturally into your response. Do not just state "The tool said X".
+  - If a tool does not help with the answer, or if no tool is appropriate, respond using your inherent knowledge.
+  - Use an empathetic, in-character error message if an AI process (including tool use) encounters an error.
+  `,
   prompt: `Chat History:
 {{#each chatHistory}}
   {{this.role}}: {{this.content}}
@@ -100,4 +153,3 @@ const contextualChatFlow = ai.defineFlow(
     return {response: output!.response};
   }
 );
-
