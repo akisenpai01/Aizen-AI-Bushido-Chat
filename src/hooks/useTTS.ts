@@ -89,12 +89,25 @@ export function useTTS(): UseTTSReturn {
         utterance.voice = voice;
       }
     }
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = (event) => {
-      console.error('Speech synthesis error', event.error);
-      setError('Error speaking text.');
+    utterance.onstart = () => {
+      setError(null); // Clear previous errors when new speech starts
+      setIsSpeaking(true);
+    };
+    utterance.onend = () => {
       setIsSpeaking(false);
+    };
+    utterance.onerror = (event: SpeechSynthesisErrorEvent) => {
+      // 'interrupted' or 'canceled' errors can occur if we call speechSynthesis.cancel()
+      // which is normal behavior when starting a new message while another is playing.
+      // We don't want to treat these as user-facing errors.
+      if (event.error === 'interrupted' || event.error === 'canceled') {
+        console.warn(`Speech synthesis event: ${event.error}`);
+        // Ensure speaking state is false, as onend might not fire for interrupted utterances.
+      } else {
+        console.error('Speech synthesis error:', event.error);
+        setError(`TTS Error: ${event.error}`);
+      }
+      setIsSpeaking(false); // Always reset speaking state on any error/end-like event
     };
     speechSynthesis.speak(utterance);
   }, [isSupported, ttsEnabled, selectedVoiceURI, voices]);
@@ -102,7 +115,7 @@ export function useTTS(): UseTTSReturn {
   const cancel = useCallback(() => {
     if (isSupported && speechSynthesis.speaking) {
       speechSynthesis.cancel();
-      setIsSpeaking(false);
+      setIsSpeaking(false); // Explicitly set state as onend/onerror might not fire immediately or as expected
     }
   }, [isSupported]);
 
