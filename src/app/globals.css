@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -36,7 +35,7 @@
 
     --radius: 0.5rem;
 
-    /* Sidebar variables, though not primary for this app, kept for consistency if shadcn/ui/sidebar is used later */
+    /* Sidebar variables */
     --sidebar-background: 0 0% 7%; /* Consistent dark gray */
     --sidebar-foreground: 0 0% 95.9%;
     --sidebar-primary: 0 0% 14.9%;
@@ -46,8 +45,6 @@
     --sidebar-border: 0 0% 10%;
     --sidebar-ring: 0 0% 14.9%;
   }
-
-  /* No .dark class needed as we are enforcing a single monochrome (dark) theme */
 }
 
 @layer base {
@@ -55,11 +52,13 @@
     @apply border-border;
   }
   body {
-    @apply text-foreground; /* Default text color */
-    background-image: url('https://placehold.co/1920x1080/1a1a1a/333333.png') data-ai-hint="dark pattern";
+    @apply text-foreground;
+    background-image: url('https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.peakpx.com%2Fen%2Fhd-wallpaper-desktop-vcxxq&psig=AOvVaw2hEwtLbFWCySUCHC16Zc6d&ust=1748886401370000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCNDAhfbj0I0DFQAAAAAdAAAAABAE'); /* Replace with your image */
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-    color: hsl(0, 0%, 95%); /* Main page text color - light for dark background image */
+    background-color: hsl(var(--background)); /* Fallback */
+    min-height: 100vh; /* Ensure full viewport height */
+    margin: 0; /* Remove default margin */
   }
 }

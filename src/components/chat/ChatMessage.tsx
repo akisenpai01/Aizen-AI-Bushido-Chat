@@ -36,14 +36,15 @@ export default function ChatMessage({ message }: ChatMessageProps) {
 
   const messageAlignment = isUser ? "justify-end" : "justify-start";
   
-  const baseBubbleStyle = "backdrop-blur-sm border rounded-lg px-4 py-2 shadow-md";
+  const baseBubbleStyle = "backdrop-blur-sm rounded-lg px-4 py-2 shadow-md border";
 
   const bubbleStyles = cn(
     baseBubbleStyle,
-    isUser && "bg-background/70 text-primary-foreground border-border/50",
-    isAizen && "bg-background/70 text-secondary-foreground border-border/50",
-    isError && "bg-destructive/70 text-destructive-foreground border-destructive/50",
-    isSystem && "bg-muted/70 text-muted-foreground border-border/50"
+    "bg-transparent", // Ensures the background image is visible through the bubble
+    isUser && "text-foreground border-border/30",
+    isAizen && "text-foreground border-border/30",
+    isError && "text-destructive border-destructive/50", // Keep error text distinct
+    isSystem && "text-muted-foreground border-border/30"
   );
 
 
@@ -57,7 +58,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
             </Avatar>
           )}
-          <Card className="w-full bg-background/70 backdrop-blur-md shadow-lg border border-border/50 text-card-foreground">
+          <Card className="w-full bg-transparent backdrop-blur-md shadow-lg border border-border/30 text-card-foreground">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold">A Haiku for You</CardTitle>
             </CardHeader>
@@ -96,4 +97,3 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     </div>
   );
 }
-
