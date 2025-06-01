@@ -34,8 +34,6 @@ export async function contextualChat(input: ContextualChatInput): Promise<Contex
 // Helper prompt for initial assessment
 const CanAnswerDirectlyInputSchema = z.object({
   message: z.string(),
-  tone: z.string().optional(),
-  answerLength: z.string().optional(),
 });
 const CanAnswerDirectlyOutputSchema = z.object({
   canAnswer: z.boolean().describe("True if the AI can answer confidently without external search, false otherwise."),
@@ -46,14 +44,26 @@ const canAnswerDirectlyPrompt = ai.definePrompt({
   name: 'canAnswerDirectlyPrompt',
   input: { schema: CanAnswerDirectlyInputSchema },
   output: { schema: CanAnswerDirectlyOutputSchema },
-  system: `You are an AI assistant. Your task is to assess if you can answer the given user message confidently from your existing knowledge WITHOUT performing an internet search.
-Consider if the question is about established facts, general knowledge, or creative tasks you can handle.
-If the question likely requires very current information (post-training), specific real-time data, obscure facts, or detailed information about specific places or technical topics, you likely cannot answer it directly and would need to search.
-Respond with canAnswer: true if you can answer.
-Respond with canAnswer: false if you cannot answer directly and would typically need to search.`,
+  system: `You are an AI assistant. Your primary knowledge cutoff is early 2023.
+Your task is to assess if you can answer the given user message accurately and comprehensively using ONLY your pre-existing knowledge up to that cutoff, WITHOUT performing an external internet search.
+
+Consider the following for when you can likely answer directly (canAnswer: true):
+- General knowledge questions about timeless facts or well-established historical events prior to early 2023.
+- Creative tasks such as writing poems, stories, or code snippets based on general concepts.
+- Simple definitions or explanations of broadly known, stable concepts.
+- Mathematical calculations (which you can perform using a dedicated tool).
+- Queries about the current time (which you can ascertain using a dedicated tool).
+
+You likely CANNOT answer directly (canAnswer: false) and would need to search if the question pertains to:
+- Specific events, developments, or information that has emerged or changed since early 2023.
+- Real-time data not covered by your specific tools (e.g., highly dynamic stock prices, current weather beyond generalities).
+- Obscure, niche, or highly specialized facts not part of common knowledge.
+- Detailed, up-to-the-minute information about specific individuals, organizations, products, or current affairs.
+- Any query where the accuracy or completeness of your internal knowledge is uncertain due to its specificity or recency.
+
+Err on the side of caution: if there's significant doubt about your ability to provide a complete, accurate, and up-to-date answer from your internal knowledge, respond with canAnswer: false.
+Respond ONLY with the JSON object: { "canAnswer": boolean, "reasoning": "optional brief reason for your assessment" }.`,
   prompt: `User Message: {{{message}}}`,
-  // Consider using a faster/cheaper model for this check if performance becomes an issue
-  // config: { model: 'googleai/gemini-2.0-flash' } 
 });
 
 
@@ -203,20 +213,15 @@ const contextualChatFlow = ai.defineFlow(
     outputSchema: ContextualChatOutputSchema, // Uses the new output schema
   },
   async (input) => {
+    // Only pass the message to the assessment prompt as per its schema
     const assessmentInput: z.infer<typeof CanAnswerDirectlyInputSchema> = { 
-      message: input.message, 
-      tone: input.tone, 
-      answerLength: input.answerLength 
+      message: input.message 
     };
     const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
 
-    if (assessmentOutput?.canAnswer) {
-      // Aizen believes it can answer directly.
-      // Call the main prompt. It might still use non-search tools like calculator.
-      const { output: mainPromptOutput } = await prompt(input);
-      return { responses: [mainPromptOutput!.response] };
-    } else {
-      // Aizen assesses it cannot answer directly / needs a search.
+    // Default to searching if assessmentOutput is null/undefined or explicitly says cannot answer.
+    if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
+      // Aizen assesses it cannot answer directly / needs a search, or assessment failed.
       let firstResponse = "I am not immediately familiar with that. Allow me to consult my knowledge base.";
       if (input.tone === "Concise" || input.answerLength === "Brief") {
           firstResponse = "Let me check that for you.";
@@ -228,6 +233,12 @@ const contextualChatFlow = ai.defineFlow(
       const searchResult = await internetSearchTool({ query: input.message });
       
       return { responses: [firstResponse, searchResult] };
+    } else {
+      // Aizen believes it can answer directly (assessmentOutput.canAnswer is true).
+      // Call the main prompt. It might still use non-search tools like calculator.
+      const { output: mainPromptOutput } = await prompt(input);
+      return { responses: [mainPromptOutput!.response] };
     }
   }
 );
+
