@@ -56,7 +56,7 @@
   }
   body {
     @apply text-foreground; /* Default text color */
-    background-image: url('https://placehold.co/1920x1080/222222/444444.png') data-ai-hint="dark abstract";
+    background-image: url('https://placehold.co/1920x1080/1a1a1a/333333.png') data-ai-hint="dark pattern";
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
