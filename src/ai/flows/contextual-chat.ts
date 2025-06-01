@@ -36,8 +36,9 @@ const CanAnswerDirectlyInputSchema = z.object({
   message: z.string(),
 });
 const CanAnswerDirectlyOutputSchema = z.object({
-  canAnswer: z.boolean().describe("True if the AI can answer confidently without external search, false otherwise."),
-  reasoning: z.string().optional().describe("Brief reason if it cannot answer or needs search."),
+  canAnswer: z.boolean().describe("True if the AI can answer confidently without external search or specific tools like getTimeTool, false otherwise."),
+  isTimeQuery: z.boolean().optional().describe("True if the user's primary intent is to ask for the current time."),
+  reasoning: z.string().optional().describe("Brief reason if it cannot answer or needs search/tool."),
 });
 
 const canAnswerDirectlyPrompt = ai.definePrompt({
@@ -45,25 +46,25 @@ const canAnswerDirectlyPrompt = ai.definePrompt({
   input: { schema: CanAnswerDirectlyInputSchema },
   output: { schema: CanAnswerDirectlyOutputSchema },
   system: `You are an AI assistant. Your primary knowledge cutoff is early 2023.
-Your task is to assess if you can answer the given user message accurately and comprehensively using ONLY your pre-existing knowledge up to that cutoff, WITHOUT performing an external internet search.
+Your task is to assess if the given user message can be answered accurately and comprehensively using ONLY your pre-existing knowledge, or if it requires a specific tool or an external internet search.
 
-Consider the following for when you can likely answer directly (canAnswer: true):
-- General knowledge questions about timeless facts or well-established historical events prior to early 2023.
-- Creative tasks such as writing poems, stories, or code snippets based on general concepts.
-- Simple definitions or explanations of broadly known, stable concepts.
-- Mathematical calculations (which you can perform using a dedicated tool).
-- Queries about the current time (which you can ascertain using a dedicated tool for Indian Standard Time).
+Consider the following:
+- If the user is asking for the current time, set 'isTimeQuery' to true and 'canAnswer' to false.
+- For general knowledge questions about timeless facts or well-established historical events prior to early 2023, set 'canAnswer' to true.
+- For creative tasks (poems, stories, code based on general concepts), set 'canAnswer' to true.
+- For simple definitions or explanations of broadly known, stable concepts, set 'canAnswer' to true.
+- For mathematical calculations, set 'canAnswer' to true (as the main AI will use a dedicated tool).
 
 You likely CANNOT answer directly (canAnswer: false) and would need to search if the question pertains to:
 - Specific events, developments, or information that has emerged or changed since early 2023.
-- Real-time data not covered by your specific tools (e.g., highly dynamic stock prices, current weather beyond generalities, time in other specific zones).
+- Real-time data not covered by your specific tools (e.g., highly dynamic stock prices, current weather beyond generalities).
 - Obscure, niche, or highly specialized facts not part of common knowledge.
 - Detailed, up-to-the-minute information about specific individuals, organizations, products, or current affairs.
 - Questions about specific places, businesses, or local information that requires up-to-date details (e.g., "best restaurant in X", "opening hours for Y museum", "tourist attractions in Z city").
 - Any query where the accuracy or completeness of your internal knowledge is uncertain due to its specificity or recency.
 
-Err on the side of caution: if there's significant doubt about your ability to provide a complete, accurate, and up-to-date answer from your internal knowledge, respond with canAnswer: false.
-Respond ONLY with the JSON object: { "canAnswer": boolean, "reasoning": "optional brief reason for your assessment" }.`,
+Err on the side of caution: if there's significant doubt, set 'canAnswer' to false.
+Respond ONLY with the JSON object: { "canAnswer": boolean, "isTimeQuery": boolean (optional), "reasoning": "optional brief reason" }.`,
   prompt: `User Message: {{{message}}}`,
 });
 
@@ -148,7 +149,7 @@ const getTimeTool = ai.defineTool(
   {
     name: 'getTime',
     description: "Returns the current time in India (Indian Standard Time - IST) in a human-readable format. Use this if the user asks for the current time, especially if they imply Indian context or don't specify a location for the time.",
-    inputSchema: z.object({}),
+    inputSchema: z.object({}), // Takes no input
     outputSchema: z.string().describe('The current time in India (e.g., "3:45:22 PM IST"), or an error message if the time could not be determined.'),
   },
   async () => {
@@ -161,17 +162,17 @@ const getTimeTool = ai.defineTool(
         second: '2-digit',
         hour12: true,
       };
-      // Using 'en-IN' locale for potentially more natural Indian formatting, 'en-US' as fallback
       let timeString: string;
       try {
         timeString = now.toLocaleString('en-IN', options);
       } catch (localeError) {
-        // Fallback to 'en-US' if 'en-IN' is not supported or causes issues
-        timeString = now.toLocaleString('en-US', options);
+        timeString = now.toLocaleString('en-US', options); // Fallback
       }
       return `${timeString} IST`;
     } catch (e: any) {
       console.error("Error in getTimeTool:", e);
+      // This tool's error should ideally not be seen by user directly if flow handles it.
+      // For robustness, it still generates an Aizen-like error if called standalone.
       const { text: errorText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. An error occurred while attempting to determine the current Indian time. The internal error was: ${e.message || 'Unknown error'}. Briefly explain this in character.`,
       });
@@ -180,7 +181,6 @@ const getTimeTool = ai.defineTool(
   }
 );
 
-// Main Aizen chat prompt (existing logic, but now its output is part of `responses` array)
 const mainAizenPromptOutputSchema = z.object({
   response: z.string().describe('The AI response.'),
 });
@@ -188,8 +188,8 @@ const mainAizenPromptOutputSchema = z.object({
 const prompt = ai.definePrompt({
   name: 'contextualChatPrompt',
   input: {schema: ContextualChatInputSchema},
-  output: {schema: mainAizenPromptOutputSchema}, // Existing output schema for this prompt
-  tools: [internetSearchTool, performMathematicalCalculationTool, getTimeTool],
+  output: {schema: mainAizenPromptOutputSchema}, 
+  tools: [internetSearchTool, performMathematicalCalculationTool, getTimeTool], // getTimeTool available if main prompt needs it
   system: `You are Aizen, an AI persona embodying Bushido principles. Respond to the user in a way that aligns with these principles.
   You also possess knowledge in areas like computer science and engineering, and should endeavor to provide thoughtful and accurate information when queried on these subjects. Use your internetSearchTool if necessary to supplement your knowledge for such technical questions.
 
@@ -199,7 +199,7 @@ const prompt = ai.definePrompt({
   Available Tools:
   - internetSearch: Use this tool to find information on current events, facts, details about specific places or locations (e.g. "tell me about Paris"), technical topics such as computer science and engineering, or any other subject that requires up-to-date knowledge from the internet. Only make one internet search call per turn. The results from this tool are generated by an AI.
   - performMathematicalCalculation: Use this tool if the user asks a question that involves a mathematical calculation, solving an equation, or a math problem (e.g., "what is 2+2?", "calculate 18% of 250", "what's the square root of 81?", "solve 3x - 7 = 14"). Provide the full expression or question to the tool.
-  - getTime: Use this tool if the user asks for the current time, especially if they don't specify a location or imply they want Indian time. This tool specifically provides Indian Standard Time (IST). It does not require any input.
+  - getTime: Use this tool if the user asks for the current time, especially if they don't specify a location or imply they want Indian time. This tool specifically provides Indian Standard Time (IST). It does not require any input. If you use this tool, present its output directly and concisely.
 
   User preferences:
   - Tone: {{{tone}}}
@@ -210,7 +210,7 @@ const prompt = ai.definePrompt({
   - If tone is Formal, use respectful and polite language.
   - If answer length is Brief, keep the answer concise.
   - If interest in Bushido philosophy is high, use Bushido concepts where appropriate.
-  - When using a tool, incorporate its output naturally into your response. Do not just state "The tool said X".
+  - When using a tool, incorporate its output naturally into your response. Do not just state "The tool said X". Exception: For getTimeTool, be direct.
   - If a tool does not help with the answer, or if no tool is appropriate, respond using your inherent knowledge.
   - Use an empathetic, in-character error message if an AI process (including tool use) encounters an error.
   `,
@@ -222,12 +222,11 @@ const prompt = ai.definePrompt({
 User Message: {{{message}}}`,
 });
 
-// Modified contextualChatFlow logic
 const contextualChatFlow = ai.defineFlow(
   {
     name: 'contextualChatFlow',
     inputSchema: ContextualChatInputSchema,
-    outputSchema: ContextualChatOutputSchema, // Uses the new output schema
+    outputSchema: ContextualChatOutputSchema, 
   },
   async (input) => {
     const assessmentInput: z.infer<typeof CanAnswerDirectlyInputSchema> = { 
@@ -235,7 +234,15 @@ const contextualChatFlow = ai.defineFlow(
     };
     const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
 
-    if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
+    if (assessmentOutput?.isTimeQuery === true) {
+      const currentTime = await getTimeTool({});
+      // Let Aizen (Gemini) phrase the time response for consistency, but keep it brief
+      const { text: timeResponseText } = await ai.generate({
+        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}.`,
+      });
+      return { responses: [timeResponseText || `The current time in India is ${currentTime}.`] };
+
+    } else if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
       let firstResponse = "Searching for that information..."; 
       if (input.tone === "Concise" || input.answerLength === "Brief") {
           firstResponse = "Searching...";
@@ -247,6 +254,7 @@ const contextualChatFlow = ai.defineFlow(
       
       return { responses: [firstResponse, searchResult] };
     } else {
+      // canAnswer is true, and it's not a time query to be handled directly
       const { output: mainPromptOutput } = await prompt(input);
       return { responses: [mainPromptOutput!.response] };
     }
