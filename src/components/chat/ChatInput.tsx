@@ -48,7 +48,7 @@ export default function ChatInput({
   };
 
   return (
-    <div className="sticky bottom-0 left-0 right-0 p-2 sm:p-4 bg-black/50 backdrop-blur-sm border-t border-border/50">
+    <div className="sticky bottom-0 left-0 right-0 p-2 sm:p-4 bg-black/40 backdrop-blur-sm border-t border-border/50">
       <div className="flex items-end space-x-2">
         <Textarea
           ref={textareaRef}

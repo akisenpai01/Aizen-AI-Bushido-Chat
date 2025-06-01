@@ -4,45 +4,45 @@
 
 @layer base {
   :root {
-    --background: 240 10% 3.9%; /* Dark base for components like cards, popovers */
-    --foreground: 0 0% 98%; /* Light text on dark components */
+    --background: 0 0% 3.9%; /* Deep dark gray */
+    --foreground: 0 0% 98%; /* Off-white for text */
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 0 0% 10%; /* Darker gray for muted elements */
+    --muted-foreground: 0 0% 60%; /* Mid-gray for muted text */
 
-    --popover: 240 10% 3.9%;
-    --popover-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%; /* Same as background */
+    --popover-foreground: 0 0% 98%; /* Same as foreground */
 
-    --card: 240 10% 3.9%;
-    --card-foreground: 0 0% 98%;
+    --card: 0 0% 3.9%; /* Same as background */
+    --card-foreground: 0 0% 98%; /* Same as foreground */
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 0 0% 10%; /* Dark gray border */
+    --input: 0 0% 10%; /* Dark gray input background */
 
-    --primary: 0 0% 14.9%; /* #262626 - For primary actions, buttons */
-    --primary-foreground: 0 0% 98%; /* Light text on primary elements */
+    --primary: 0 0% 14.9%; /* #262626 - Main interactive color */
+    --primary-foreground: 0 0% 98%; /* Light text on primary */
 
-    --secondary: 240 4.8% 20%; /* A slightly lighter dark for secondary elements */
-    --secondary-foreground: 0 0% 98%;
+    --secondary: 0 0% 20%; /* Slightly lighter gray for secondary elements */
+    --secondary-foreground: 0 0% 98%; /* Light text on secondary */
 
-    --accent: 240 4.8% 25%; /* For hover states, active states */
-    --accent-foreground: 0 0% 98%;
+    --accent: 0 0% 25%; /* Lighter gray for hover/active states */
+    --accent-foreground: 0 0% 98%; /* Light text on accent */
 
-    --destructive: 0 62.8% 30.6%;
+    --destructive: 0 62.8% 30.6%; /* Retaining a distinct destructive color for errors */
     --destructive-foreground: 0 0% 98%;
 
-    --ring: 0 0% 14.9%; /* #262626 */
+    --ring: 0 0% 14.9%; /* #262626 - For focus rings */
 
     --radius: 0.5rem;
 
     /* Sidebar variables, though not primary for this app, kept for consistency if shadcn/ui/sidebar is used later */
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-background: 0 0% 7%; /* Consistent dark gray */
+    --sidebar-foreground: 0 0% 95.9%;
     --sidebar-primary: 0 0% 14.9%;
     --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-accent: 0 0% 10%;
+    --sidebar-accent-foreground: 0 0% 95.9%;
+    --sidebar-border: 0 0% 10%;
     --sidebar-ring: 0 0% 14.9%;
   }
 
