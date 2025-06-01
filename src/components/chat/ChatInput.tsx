@@ -48,7 +48,7 @@ export default function ChatInput({
   };
 
   return (
-    <div className="sticky bottom-0 left-0 right-0 p-2 sm:p-4 bg-transparent backdrop-blur-md border-t border-border/50">
+    <div className="sticky bottom-0 left-0 right-0 p-2 sm:p-4 bg-transparent backdrop-blur-md border-t border-border/30">
       <div className="flex items-end space-x-2">
         <Textarea
           ref={textareaRef}
@@ -56,7 +56,7 @@ export default function ChatInput({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={isListening ? "Listening..." : "Path of words..."}
-          className="flex-1 resize-none overflow-y-auto max-h-32 bg-transparent text-foreground placeholder:text-muted-foreground border border-white/20 focus-visible:ring-primary/50"
+          className="flex-1 resize-none overflow-y-auto max-h-32 bg-transparent text-foreground placeholder:text-muted-foreground border border-white/10 focus-visible:ring-primary/50"
           rows={1}
           disabled={isSending || isListening}
         />

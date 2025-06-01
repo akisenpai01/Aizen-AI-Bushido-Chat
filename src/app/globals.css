@@ -55,7 +55,7 @@
   }
   body {
     @apply bg-background text-foreground; /* Default component background and text */
-    background-image: url('https://placehold.co/1920x1080/333333/666666.png') data-ai-hint="dark texture";
+    background-image: url('https://placehold.co/1920x1080/101010/303030.png') data-ai-hint="dark texture";
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
