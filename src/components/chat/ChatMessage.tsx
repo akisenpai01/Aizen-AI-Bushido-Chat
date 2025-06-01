@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BrainCircuit, User, AlertTriangle, ServerCrash } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
+import { cn } from "@/lib/utils";
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -21,7 +22,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     if (isUser) return <User className="h-6 w-6" />;
     if (isAizen) return <BrainCircuit className="h-6 w-6 text-primary" />;
     if (isError) return <AlertTriangle className="h-6 w-6 text-destructive" />;
-    if (isSystem) return <ServerCrash className="h-6 w-6 text-muted-foreground" />; // Or another icon for system
+    if (isSystem) return <ServerCrash className="h-6 w-6 text-muted-foreground" />;
     return null;
   };
   
@@ -34,13 +35,17 @@ export default function ChatMessage({ message }: ChatMessageProps) {
   };
 
   const messageAlignment = isUser ? "justify-end" : "justify-start";
-  const bubbleStyles = isUser
-    ? "bg-primary/80 text-primary-foreground" // Translucent primary
-    : isAizen
-    ? "bg-secondary/80 text-secondary-foreground" // Translucent secondary
-    : isError
-    ? "bg-destructive/80 text-destructive-foreground"
-    : "bg-muted/80 text-muted-foreground"; // System messages
+  
+  const baseBubbleStyle = "backdrop-blur-sm border rounded-lg px-4 py-2 shadow-md";
+
+  const bubbleStyles = cn(
+    baseBubbleStyle,
+    isUser && "text-primary-foreground border-white/10",
+    isAizen && "text-secondary-foreground border-white/10",
+    isError && "text-destructive-foreground border-destructive/30",
+    isSystem && "text-muted-foreground border-white/5"
+  );
+
 
   if (message.type === 'haiku' && isAizen) {
     return (
@@ -52,7 +57,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
             </Avatar>
           )}
-          <Card className="w-full bg-secondary/90 shadow-lg border-border/50">
+          <Card className="w-full bg-transparent backdrop-blur-md shadow-lg border border-white/20 text-card-foreground">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold">A Haiku for You</CardTitle>
             </CardHeader>
@@ -77,7 +82,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
           </Avatar>
         )}
         <div
-          className={`rounded-lg px-4 py-2 shadow-md ${bubbleStyles}`}
+          className={bubbleStyles}
         >
           {typeof message.content === 'string' ? <ReactMarkdown className="prose prose-sm prose-invert max-w-none break-words">{message.content}</ReactMarkdown> : message.content}
         </div>
