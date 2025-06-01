@@ -43,10 +43,20 @@ async (input) => {
       const { text } = await ai.generate({
         prompt: `You are a helpful assistant. Provide a concise and factual answer to the following query, as if you are retrieving it from a knowledge base or search engine. Query: "${input.query}"`,
       });
-      return text || "I was unable to find specific information for that query using my current knowledge.";
+      if (text && text.trim()) {
+        return text;
+      }
+      // If no text or empty text, generate a "not found" message via Gemini
+      const { text: notFoundText } = await ai.generate({
+        prompt: `You are Aizen, an AI embodying Bushido principles. Inform the user in a brief, in-character manner that a search for the query "${input.query}" did not yield specific information.`,
+      });
+      return notFoundText || "The path of inquiry led to stillness; no specific information was found on this matter."; // Ultimate fallback
     } catch (e: any) {
       console.error("Error in internetSearchTool calling Gemini:", e);
-      return "My connection to the digital scrolls encountered a disturbance while searching. The information could not be retrieved at this moment.";
+      const { text: errorText } = await ai.generate({
+        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly explain in character that an error occurred while trying to search for information. The query was "${input.query}". The internal error was: ${e.message || 'Unknown error'}.`,
+      });
+      return errorText || "A disturbance in the flow of knowledge prevented the search. My apologies."; // Ultimate fallback
     }
   }
 );
@@ -63,7 +73,7 @@ const getTimeTool = ai.defineTool(
       return new Date().toLocaleTimeString();
     } catch (e: any) {
       console.error("Error in getTimeTool:", e);
-      return "I seem to have lost track of the moment.";
+      return "I seem to have lost track of the moment."; // This is simple, direct, and Aizen (Gemini) will frame it.
     }
   }
 );
@@ -98,10 +108,20 @@ const performMathematicalCalculationTool = ai.defineTool(
   async (input) => {
     try {
       const { output } = await performMathematicalCalculationGenkitPrompt(input);
-      return output!.result;
+      if (output && output.result) {
+        return output.result;
+      }
+      // If prompt somehow fails to produce output.result
+      const { text: errorText } = await ai.generate({
+        prompt: `You are Aizen, an AI embodying Bushido principles. The user asked to calculate: "${input.expression}". An issue occurred, and no specific result was obtained from the calculation routine. Briefly explain this in character.`,
+      });
+      return errorText || "The numbers became momentarily clouded; the calculation could not be completed as expected.";
     } catch (e: any) {
       console.error("Error in performMathematicalCalculationTool calling Gemini:", e);
-      return "My abacus seems to be malfunctioning; I could not perform the calculation.";
+      const { text: errorText } = await ai.generate({
+        prompt: `You are Aizen, an AI embodying Bushido principles. An error occurred while attempting the calculation for: "${input.expression}". The internal error was: ${e.message || 'Unknown error'}. Briefly explain this in character.`,
+      });
+      return errorText || "My abacus seems to be malfunctioning; I could not perform the calculation."; // Ultimate fallback
     }
   }
 );
