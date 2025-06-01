@@ -50,7 +50,9 @@ export function useSTT(): UseSTTReturn {
         };
 
         recognition.onerror = (event) => {
-          console.error('Speech recognition error', event.error);
+          if (event.error !== 'no-speech') {
+            console.error('Speech recognition error', event.error);
+          }
           setError(event.error === 'no-speech' ? 'No speech detected.' : 
                    event.error === 'audio-capture' ? 'Microphone problem.' :
                    event.error === 'not-allowed' ? 'Permission denied.' :
