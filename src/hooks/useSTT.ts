@@ -53,7 +53,7 @@ export function useSTT(): UseSTTReturn {
           if (event.error !== 'no-speech') {
             console.error('Speech recognition error', event.error);
           }
-          setError(event.error === 'no-speech' ? 'No speech detected.' : 
+          setError(event.error === 'no-speech' ? 'No speech detected.' :
                    event.error === 'audio-capture' ? 'Microphone problem.' :
                    event.error === 'not-allowed' ? 'Permission denied.' :
                    'Speech recognition error.');
@@ -61,9 +61,8 @@ export function useSTT(): UseSTTReturn {
         };
 
         recognition.onend = () => {
-          if (isListening) { // If it ended prematurely and we still want to listen
-             // This check prevents restarting if stopListening was called
-          }
+          // When recognition ends for any reason, update the state.
+          setIsListening(false);
         };
       } else {
         setIsSupported(false);
@@ -74,7 +73,7 @@ export function useSTT(): UseSTTReturn {
       recognitionRef.current?.stop();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // isListening removed from deps to control onend behavior
+  }, []); 
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
