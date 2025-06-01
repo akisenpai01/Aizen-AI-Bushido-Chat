@@ -37,7 +37,7 @@ export default function AizenChatPage() {
   const { 
     isListening: isSttListening, 
     interimTranscript, 
-    finalTranscript, 
+    finalTranscript: finalTranscriptSegment, // Renamed to reflect it's a segment
     startListening, 
     stopListening, 
     error: sttError,
@@ -76,17 +76,25 @@ export default function AizenChatPage() {
   }, []);
 
   useEffect(() => {
-    if (finalTranscript) {
-      setInput(prev => prev + finalTranscript);
+    if (finalTranscriptSegment) {
+      setInput(prevInput => {
+        const trimmedPrev = prevInput.trim();
+        const trimmedNewSegment = finalTranscriptSegment.trim();
+        if (trimmedNewSegment === '') return trimmedPrev; // If new segment is empty, do nothing
+        return trimmedPrev ? `${trimmedPrev} ${trimmedNewSegment}` : trimmedNewSegment;
+      });
     }
-  }, [finalTranscript]);
+  }, [finalTranscriptSegment]);
 
   useEffect(() => {
-    if (interimTranscript) {
-      // For live updates, you might need a way to append or replace part of the input
-      // For simplicity, we'll let finalTranscript handle the update.
-    }
-  }, [interimTranscript]);
+    // For live updates of interim transcript in the input field, 
+    // you could display it next to the input or as a placeholder.
+    // For now, we'll rely on finalTranscriptSegment for updating the main input.
+    // If you want the input to show interim results:
+    // if (isSttListening && interimTranscript) {
+    //   setInput(currentFullInput + interimTranscript); // Where currentFullInput is text before interim part
+    // }
+  }, [interimTranscript, isSttListening]);
 
   useEffect(() => {
     scrollToBottom();
@@ -114,7 +122,6 @@ export default function AizenChatPage() {
   const handleScroll = () => {
     if (chatContainerRef.current) {
       const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
-      // Show button if scrolled up more than a certain threshold (e.g., 100px)
       setShowScrollToBottom(scrollHeight - scrollTop - clientHeight > 100);
     }
   };
@@ -135,18 +142,22 @@ export default function AizenChatPage() {
 
   const handleSendMessage = async () => {
     if (!input.trim()) return;
-    const userMessage = addMessage({ role: 'user', content: input.trim() });
-    setInput('');
+    const userMessageContent = input.trim();
+    addMessage({ role: 'user', content: userMessageContent });
+    setInput(''); // Clear input after sending
     setIsSending(true);
     addMessage({ role: 'system', content: "Aizen is meditating..." });
 
+    // Use a temporary messages array that includes the latest user message for the AI
+    const messagesForAI = [...messages, { id: 'temp', role: 'user', content: userMessageContent, timestamp: Date.now() }];
+
+
     const result = await handleChatMessageAction({
-      message: userMessage.content as string,
-      chatHistory: messages,
+      message: userMessageContent,
+      chatHistory: messagesForAI, // Send history including the current message
       userPreferences,
     });
     
-    // Remove "Aizen is meditating..."
     setMessages(prev => prev.filter(msg => !(msg.role === 'system' && msg.content === "Aizen is meditating...")));
 
     if (result.response) {
@@ -165,7 +176,7 @@ export default function AizenChatPage() {
     setIsQuizModalOpen(false);
     toast({ title: "Preferences Saved", description: "Aizen will now respond according to your preferences." });
     if (messages.length === 0 || (messages.length === 1 && messages[0].role === 'assistant' && messages[0].content.startsWith("Greetings."))) {
-        setMessages([]); // Clear initial greeting if it exists
+        setMessages([]); 
         addMessage({ role: 'assistant', content: "Greetings. I am Aizen. How may I assist you on your path today?" });
     }
   };
@@ -220,7 +231,7 @@ export default function AizenChatPage() {
       <main 
         ref={chatContainerRef} 
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto p-4 pt-20 pb-28 bg-transparent" // pt-20 for header, pb for input bar
+        className="flex-1 overflow-y-auto p-4 pt-20 pb-28 bg-transparent"
       >
         <div className="max-w-3xl mx-auto space-y-4">
           {messages.map((msg) => (
@@ -242,7 +253,8 @@ export default function AizenChatPage() {
       )}
 
       <ChatInput
-        input={isSttListening && interimTranscript ? input + interimTranscript : input}
+        // Display current input + interim transcript if listening
+        input={isSttListening && interimTranscript ? (input.trim() ? input.trim() + ' ' : '') + interimTranscript : input}
         setInput={setInput}
         onSendMessage={handleSendMessage}
         isSending={isSending}
@@ -257,10 +269,8 @@ export default function AizenChatPage() {
         isOpen={isQuizModalOpen}
         onClose={() => {
             setIsQuizModalOpen(false);
-            // Ensure quiz completed is marked if closed manually without saving,
-            // or have a mechanism to enforce completion. For now, allow closing.
             if (!getItem<boolean>(QUIZ_COMPLETED_KEY, false)) {
-                 setItem(QUIZ_COMPLETED_KEY, true); // Mark as completed to not show again
+                 setItem(QUIZ_COMPLETED_KEY, true); 
                  if (messages.length === 0) {
                     addMessage({ role: 'assistant', content: "Greetings. I am Aizen. How may I assist you on your path today?" });
                  }

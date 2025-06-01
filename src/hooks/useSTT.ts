@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 interface UseSTTReturn {
   isListening: boolean;
   interimTranscript: string;
-  finalTranscript: string;
+  finalTranscript: string; // This will now represent the LATEST finalized segment
   startListening: () => void;
   stopListening: () => void;
   error: string | null;
@@ -16,7 +16,7 @@ interface UseSTTReturn {
 export function useSTT(): UseSTTReturn {
   const [isListening, setIsListening] = useState(false);
   const [interimTranscript, setInterimTranscript] = useState('');
-  const [finalTranscript, setFinalTranscript] = useState('');
+  const [finalTranscript, setFinalTranscript] = useState(''); // Represents the latest finalized segment
   const [error, setError] = useState<string | null>(null);
   const [isSupported, setIsSupported] = useState(false);
 
@@ -29,30 +29,31 @@ export function useSTT(): UseSTTReturn {
         setIsSupported(true);
         recognitionRef.current = new SpeechRecognition();
         const recognition = recognitionRef.current;
-        recognition.continuous = true;
+        recognition.continuous = true; // Keep continuous for longer dictation
         recognition.interimResults = true;
         recognition.lang = 'en-US';
 
         recognition.onresult = (event) => {
-          let interim = '';
-          let final = '';
+          let currentInterim = '';
+          let newFinalSegment = '';
           for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const transcript = event.results[i][0].transcript;
             if (event.results[i].isFinal) {
-              final += event.results[i][0].transcript;
+              newFinalSegment += transcript;
             } else {
-              interim += event.results[i][0].transcript;
+              currentInterim += transcript;
             }
           }
-          setInterimTranscript(interim);
-          if (final) {
-            setFinalTranscript(prev => prev + final);
+          setInterimTranscript(currentInterim);
+          if (newFinalSegment) {
+            setFinalTranscript(newFinalSegment.trim()); // Set the new final segment
           }
         };
 
         recognition.onerror = (event) => {
-          console.error('Speech recognition error details:', event.error); 
+          console.error('Speech recognition error details:', event.error);
           let userFriendlyError = 'An unexpected speech recognition error occurred. Please try again.';
-          switch (event.error as SpeechRecognitionErrorCode) { // Cast to SpeechRecognitionErrorCode for type safety
+          switch (event.error as SpeechRecognitionErrorCode) {
             case 'no-speech':
               userFriendlyError = 'No speech detected. Please ensure your microphone is active and try speaking clearly.';
               break;
@@ -69,7 +70,12 @@ export function useSTT(): UseSTTReturn {
               userFriendlyError = 'The speech recognition service is temporarily unavailable. Please try again later.';
               break;
             case 'aborted':
-              userFriendlyError = 'Speech recognition was aborted. If this was unintentional, please try again.';
+              // Don't set error for manual aborts if stopListening was called
+              if (isListening) { // Check if it was aborted while we thought we were listening
+                userFriendlyError = 'Speech recognition was aborted. If this was unintentional, please try again.';
+              } else {
+                return; // Likely aborted by stopListening call, so no error needed.
+              }
               break;
             case 'bad-grammar':
               userFriendlyError = 'Speech recognition had trouble understanding the audio. Please try speaking clearly.';
@@ -79,26 +85,23 @@ export function useSTT(): UseSTTReturn {
               break;
           }
           setError(userFriendlyError);
-          setIsListening(false);
+          setIsListening(false); // Ensure listening is set to false on error
         };
 
         recognition.onend = () => {
-          setIsListening(false);
+          setIsListening(false); // Ensure isListening is false when recognition ends
         };
       } else {
         setIsSupported(false);
         setError("Speech recognition not supported in this browser.");
       }
     }
-    return () => {
-      recognitionRef.current?.stop();
-    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
+  }, []); // isListening removed from deps to avoid re-creating recognition on its change
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
-      setFinalTranscript(''); 
+      setFinalTranscript(''); // Clear previous final segment
       setInterimTranscript('');
       setError(null);
       try {
@@ -106,23 +109,38 @@ export function useSTT(): UseSTTReturn {
         setIsListening(true);
       } catch (e) {
         console.error("Error starting recognition:", e);
-        setError("Could not start speech recognition.");
+        if (e instanceof DOMException && e.name === 'NotAllowedError') {
+             setError('Permission to use the microphone was denied. Please enable microphone access in your browser settings.');
+        } else if (e instanceof DOMException && e.name === 'InvalidStateError') {
+            // This can happen if start() is called while already started, though our isListening check should prevent it.
+            // Or if it's in an error state.
+            console.warn("Speech recognition service was in an invalid state. Attempting to reset.");
+             try {
+                recognitionRef.current.abort(); // Try to abort first
+             } catch (abortError) {
+                // Ignore abort error if it also fails
+             }
+             // Re-attempt start after a brief delay, or instruct user to retry
+             setError("Speech recognition service issue. Please try again shortly.");
+
+        } else {
+            setError("Could not start speech recognition. Please ensure your microphone is working and permissions are granted.");
+        }
         setIsListening(false);
       }
     }
-  }, [isListening]);
+  }, [isListening]); // isListening dependency is fine here
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current && isListening) {
       recognitionRef.current.stop();
-      setIsListening(false);
+      setIsListening(false); // Explicitly set here, onend will also fire
     }
   }, [isListening]);
 
   return { isListening, interimTranscript, finalTranscript, startListening, stopListening, error, isSupported };
 }
 
-// Define SpeechRecognitionErrorCode type based on MDN documentation for completeness
 type SpeechRecognitionErrorCode =
   | "no-speech"
   | "aborted"
