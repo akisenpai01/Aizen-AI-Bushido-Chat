@@ -53,7 +53,7 @@
   }
   body {
     @apply text-foreground;
-    background-image: url('https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.peakpx.com%2Fen%2Fhd-wallpaper-desktop-vcxxq&psig=AOvVaw2hEwtLbFWCySUCHC16Zc6d&ust=1748886401370000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCNDAhfbj0I0DFQAAAAAdAAAAABAE'); /* Replace with your image */
+    background-image: url('https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.peakpx.com%2Fen%2Fhd-wallpaper-desktop-vcxxq&psig=AOvVaw2hEwtLbFWCySUCHC16Zc6d&ust=1748886401370000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCNDAhfbj0I0DFQAAAAAdAAAAABAE');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
