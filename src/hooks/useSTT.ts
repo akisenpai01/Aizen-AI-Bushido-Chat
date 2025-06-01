@@ -50,11 +50,35 @@ export function useSTT(): UseSTTReturn {
         };
 
         recognition.onerror = (event) => {
-          console.error('Speech recognition error', event.error);
-          setError(event.error === 'no-speech' ? 'No speech detected.' :
-                   event.error === 'audio-capture' ? 'Microphone problem.' :
-                   event.error === 'not-allowed' ? 'Permission denied.' :
-                   'Speech recognition error.');
+          console.error('Speech recognition error details:', event.error); 
+          let userFriendlyError = 'An unexpected speech recognition error occurred. Please try again.';
+          switch (event.error as SpeechRecognitionErrorCode) { // Cast to SpeechRecognitionErrorCode for type safety
+            case 'no-speech':
+              userFriendlyError = 'No speech detected. Please ensure your microphone is active and try speaking clearly.';
+              break;
+            case 'audio-capture':
+              userFriendlyError = 'Microphone problem. Please check your microphone connection and permissions.';
+              break;
+            case 'not-allowed':
+              userFriendlyError = 'Permission to use the microphone was denied or has not been granted. Please enable microphone access in your browser settings for this site.';
+              break;
+            case 'network':
+              userFriendlyError = 'A network error occurred during speech recognition. Please check your internet connection and try again.';
+              break;
+            case 'service-not-available':
+              userFriendlyError = 'The speech recognition service is temporarily unavailable. Please try again later.';
+              break;
+            case 'aborted':
+              userFriendlyError = 'Speech recognition was aborted. If this was unintentional, please try again.';
+              break;
+            case 'bad-grammar':
+              userFriendlyError = 'Speech recognition had trouble understanding the audio. Please try speaking clearly.';
+              break;
+            case 'language-not-supported':
+              userFriendlyError = 'The configured language for speech recognition is not supported by your browser.';
+              break;
+          }
+          setError(userFriendlyError);
           setIsListening(false);
         };
 
@@ -97,3 +121,14 @@ export function useSTT(): UseSTTReturn {
 
   return { isListening, interimTranscript, finalTranscript, startListening, stopListening, error, isSupported };
 }
+
+// Define SpeechRecognitionErrorCode type based on MDN documentation for completeness
+type SpeechRecognitionErrorCode =
+  | "no-speech"
+  | "aborted"
+  | "audio-capture"
+  | "network"
+  | "not-allowed"
+  | "service-not-available"
+  | "bad-grammar"
+  | "language-not-supported";
