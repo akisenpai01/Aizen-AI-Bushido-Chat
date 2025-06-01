@@ -16,11 +16,11 @@ interface HandleChatMessageActionInput {
 
 export async function handleChatMessageAction(
   input: HandleChatMessageActionInput
-): Promise<{ response?: string; error?: string }> {
+): Promise<{ responses?: string[]; error?: string }> { // Return type changed
   try {
     const historyForAI = input.chatHistory
       .slice(-MAX_HISTORY_LENGTH)
-      .map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content as string })); // Ensure content is string for AI
+      .map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content as string }));
 
     const aiInput: ContextualChatInput = {
       message: input.message,
@@ -29,18 +29,17 @@ export async function handleChatMessageAction(
       answerLength: input.userPreferences?.answerLength,
       bushidoInterest: input.userPreferences?.bushidoInterest,
     };
-    const result: ContextualChatOutput = await contextualChat(aiInput);
-    return { response: result.response };
+    const result: ContextualChatOutput = await contextualChat(aiInput); // result now has { responses: string[] }
+    return { responses: result.responses }; // Pass the array
   } catch (e: any) {
     console.error("Error in handleChatMessageAction:", e);
-    // Generate an AI-formatted error message
     try {
       const errorInput: GenerateErrorMessageInput = { errorMessage: e.message || "An unknown error occurred." };
       const formattedError: GenerateErrorMessageOutput = await generateErrorMessage(errorInput);
       return { error: formattedError.aizenErrorMessage };
     } catch (formatError: any) {
       console.error("Error formatting error message:", formatError);
-      return { error: "A tranquil mind is a strong mind. An unexpected disturbance occurred. Please try again." }; // Fallback
+      return { error: "A tranquil mind is a strong mind. An unexpected disturbance occurred. Please try again." }; 
     }
   }
 }
@@ -69,7 +68,6 @@ export async function handleGenerateHaikuAction(
   }
 }
 
-// This action is if you already have an error string and want Aizen to "say" it.
 export async function handleFormatErrorAction(
   errorMessage: string
 ): Promise<{ aizenErrorMessage: string }> {
@@ -79,6 +77,6 @@ export async function handleFormatErrorAction(
       return { aizenErrorMessage: formattedError.aizenErrorMessage };
     } catch (formatError: any) {
       console.error("Error formatting error message:", formatError);
-      return { aizenErrorMessage: "Even in adversity, seek calm. An error occurred." }; // Fallback
+      return { aizenErrorMessage: "Even in adversity, seek calm. An error occurred." }; 
     }
 }

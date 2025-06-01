@@ -31,7 +31,7 @@ export default function AizenChatPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
-  const [sttBaseText, setSttBaseText] = useState(''); // To store text before STT starts
+  const [sttBaseText, setSttBaseText] = useState('');
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
@@ -77,10 +77,9 @@ export default function AizenChatPage() {
     setIsInitialLoading(false);
   }, []);
 
-  // Combined useEffect to manage input state during STT
   useEffect(() => {
     if (isSttListening) {
-      let currentRecognizedText = finalTranscriptSegment || ''; // Full final text from STT for current session
+      let currentRecognizedText = finalTranscriptSegment || ''; 
       let newComposedInput = sttBaseText;
 
       if (currentRecognizedText) {
@@ -92,7 +91,6 @@ export default function AizenChatPage() {
       }
       setInput(newComposedInput.trim());
     }
-    // When STT stops, the 'input' field retains the last value set by this effect or user typing.
   }, [isSttListening, finalTranscriptSegment, interimTranscript, sttBaseText]);
 
 
@@ -143,8 +141,8 @@ export default function AizenChatPage() {
     if (!input.trim()) return;
     const userMessageContent = input.trim();
     addMessage({ role: 'user', content: userMessageContent });
-    setInput(''); // Clear input after sending
-    setSttBaseText(''); // Clear STT base text as well
+    setInput(''); 
+    setSttBaseText(''); 
     setIsSending(true);
     addMessage({ role: 'system', content: "Aizen is meditating..." });
 
@@ -158,8 +156,15 @@ export default function AizenChatPage() {
     
     setMessages(prev => prev.filter(msg => !(msg.role === 'system' && msg.content === "Aizen is meditating...")));
 
-    if (result.response) {
-      addMessage({ role: 'assistant', content: result.response });
+    if (result.responses && Array.isArray(result.responses)) {
+      for (let i = 0; i < result.responses.length; i++) {
+        addMessage({ role: 'assistant', content: result.responses[i] });
+        if (i < result.responses.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 500)); // 0.5 second delay
+        }
+      }
+    } else if ((result as any).response) { // Fallback for single response structure if an error path returned it differently
+        addMessage({ role: 'assistant', content: (result as any).response });
     } else if (result.error) {
       addMessage({ role: 'error', content: result.error });
       if (ttsEnabled) speakTTS(result.error);
@@ -205,13 +210,12 @@ export default function AizenChatPage() {
   };
 
   const handleStartListening = useCallback(() => {
-    setSttBaseText(input.trim()); // Save current input text, trimmed
-    sttStartListening(); // Call the original startListening from useSTT
+    setSttBaseText(input.trim()); 
+    sttStartListening(); 
   }, [input, sttStartListening]);
 
   const handleStopListening = useCallback(() => {
-    sttStopListening(); // Call the original stopListening from useSTT
-    // The input state should already be updated by the useEffect, so no need to setSttBaseText here.
+    sttStopListening(); 
   }, [sttStopListening]);
 
 
@@ -262,13 +266,13 @@ export default function AizenChatPage() {
       )}
 
       <ChatInput
-        input={input} // Pass the 'input' state directly
+        input={input} 
         setInput={setInput}
         onSendMessage={handleSendMessage}
         isSending={isSending}
         isListening={isSttListening}
-        startListening={handleStartListening} // Use wrapped handler
-        stopListening={handleStopListening}   // Use wrapped handler
+        startListening={handleStartListening} 
+        stopListening={handleStopListening}   
         isSTTSupported={isSTTSupported}
         sttError={sttError}
       />

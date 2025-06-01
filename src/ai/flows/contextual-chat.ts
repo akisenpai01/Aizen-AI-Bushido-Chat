@@ -21,14 +21,41 @@ const ContextualChatInputSchema = z.object({
 });
 export type ContextualChatInput = z.infer<typeof ContextualChatInputSchema>;
 
+// Updated Output Schema
 const ContextualChatOutputSchema = z.object({
-  response: z.string().describe('The AI response.'),
+  responses: z.array(z.string()).describe('One or more responses from Aizen. If Aizen needs to search for an unknown answer, the first response will indicate it is searching, and the second will contain the result.'),
 });
 export type ContextualChatOutput = z.infer<typeof ContextualChatOutputSchema>;
 
 export async function contextualChat(input: ContextualChatInput): Promise<ContextualChatOutput> {
   return contextualChatFlow(input);
 }
+
+// Helper prompt for initial assessment
+const CanAnswerDirectlyInputSchema = z.object({
+  message: z.string(),
+  tone: z.string().optional(),
+  answerLength: z.string().optional(),
+});
+const CanAnswerDirectlyOutputSchema = z.object({
+  canAnswer: z.boolean().describe("True if the AI can answer confidently without external search, false otherwise."),
+  reasoning: z.string().optional().describe("Brief reason if it cannot answer or needs search."),
+});
+
+const canAnswerDirectlyPrompt = ai.definePrompt({
+  name: 'canAnswerDirectlyPrompt',
+  input: { schema: CanAnswerDirectlyInputSchema },
+  output: { schema: CanAnswerDirectlyOutputSchema },
+  system: `You are an AI assistant. Your task is to assess if you can answer the given user message confidently from your existing knowledge WITHOUT performing an internet search.
+Consider if the question is about established facts, general knowledge, or creative tasks you can handle.
+If the question likely requires very current information (post-training), specific real-time data, obscure facts, or detailed information about specific places or technical topics, you likely cannot answer it directly and would need to search.
+Respond with canAnswer: true if you can answer.
+Respond with canAnswer: false if you cannot answer directly and would typically need to search.`,
+  prompt: `User Message: {{{message}}}`,
+  // Consider using a faster/cheaper model for this check if performance becomes an issue
+  // config: { model: 'googleai/gemini-2.0-flash' } 
+});
+
 
 const internetSearchTool = ai.defineTool({
   name: 'internetSearch',
@@ -46,17 +73,16 @@ async (input) => {
       if (text && text.trim()) {
         return text;
       }
-      // If no text or empty text, generate a "not found" message via Gemini
       const { text: notFoundText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. Inform the user in a brief, in-character manner that a search for the query "${input.query}" did not yield specific information.`,
       });
-      return notFoundText || "The path of inquiry led to stillness; no specific information was found on this matter."; // Ultimate fallback
+      return notFoundText || "The path of inquiry led to stillness; no specific information was found on this matter.";
     } catch (e: any) {
       console.error("Error in internetSearchTool calling Gemini:", e);
       const { text: errorText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. Briefly explain in character that an error occurred while trying to search for information. The query was "${input.query}". The internal error was: ${e.message || 'Unknown error'}.`,
       });
-      return errorText || "A disturbance in the flow of knowledge prevented the search. My apologies."; // Ultimate fallback
+      return errorText || "A disturbance in the flow of knowledge prevented the search. My apologies.";
     }
   }
 );
@@ -80,7 +106,6 @@ If the expression is invalid or cannot be calculated, briefly state why.
 Respond with only the answer or the brief explanation.`,
 });
 
-
 const performMathematicalCalculationTool = ai.defineTool(
   {
     name: 'performMathematicalCalculation',
@@ -94,7 +119,6 @@ const performMathematicalCalculationTool = ai.defineTool(
       if (output && output.result) {
         return output.result;
       }
-      // If prompt somehow fails to produce output.result
       const { text: errorText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. The user asked to calculate: "${input.expression}". An issue occurred, and no specific result was obtained from the calculation routine. Briefly explain this in character.`,
       });
@@ -104,7 +128,7 @@ const performMathematicalCalculationTool = ai.defineTool(
       const { text: errorText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. An error occurred while attempting the calculation for: "${input.expression}". The internal error was: ${e.message || 'Unknown error'}. Briefly explain this in character.`,
       });
-      return errorText || "My abacus seems to be malfunctioning; I could not perform the calculation."; // Ultimate fallback
+      return errorText || "My abacus seems to be malfunctioning; I could not perform the calculation.";
     }
   }
 );
@@ -113,7 +137,7 @@ const getTimeTool = ai.defineTool(
   {
     name: 'getTime',
     description: 'Returns the current server time in a human-readable format.',
-    inputSchema: z.object({}), // No specific input needed
+    inputSchema: z.object({}),
     outputSchema: z.string().describe('The current time, e.g., "3:45:22 PM", or an error message if the time could not be determined.'),
   },
   async () => {
@@ -129,10 +153,15 @@ const getTimeTool = ai.defineTool(
   }
 );
 
+// Main Aizen chat prompt (existing logic, but now its output is part of `responses` array)
+const mainAizenPromptOutputSchema = z.object({
+  response: z.string().describe('The AI response.'),
+});
+
 const prompt = ai.definePrompt({
   name: 'contextualChatPrompt',
   input: {schema: ContextualChatInputSchema},
-  output: {schema: ContextualChatOutputSchema},
+  output: {schema: mainAizenPromptOutputSchema}, // Existing output schema for this prompt
   tools: [internetSearchTool, performMathematicalCalculationTool, getTimeTool],
   system: `You are Aizen, an AI persona embodying Bushido principles. Respond to the user in a way that aligns with these principles.
   You also possess knowledge in areas like computer science and engineering, and should endeavor to provide thoughtful and accurate information when queried on these subjects. Use your internetSearchTool if necessary to supplement your knowledge for such technical questions.
@@ -166,14 +195,39 @@ const prompt = ai.definePrompt({
 User Message: {{{message}}}`,
 });
 
+// Modified contextualChatFlow logic
 const contextualChatFlow = ai.defineFlow(
   {
     name: 'contextualChatFlow',
     inputSchema: ContextualChatInputSchema,
-    outputSchema: ContextualChatOutputSchema,
+    outputSchema: ContextualChatOutputSchema, // Uses the new output schema
   },
-  async input => {
-    const {output} = await prompt(input);
-    return {response: output!.response};
+  async (input) => {
+    const assessmentInput: z.infer<typeof CanAnswerDirectlyInputSchema> = { 
+      message: input.message, 
+      tone: input.tone, 
+      answerLength: input.answerLength 
+    };
+    const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
+
+    if (assessmentOutput?.canAnswer) {
+      // Aizen believes it can answer directly.
+      // Call the main prompt. It might still use non-search tools like calculator.
+      const { output: mainPromptOutput } = await prompt(input);
+      return { responses: [mainPromptOutput!.response] };
+    } else {
+      // Aizen assesses it cannot answer directly / needs a search.
+      let firstResponse = "I am not immediately familiar with that. Allow me to consult my knowledge base.";
+      if (input.tone === "Concise" || input.answerLength === "Brief") {
+          firstResponse = "Let me check that for you.";
+      } else if (input.tone === "Formal") {
+          firstResponse = "Permit me a moment to consult available knowledge on this topic."
+      }
+      // Could further customize 'firstResponse' using another LLM call for persona consistency if needed.
+
+      const searchResult = await internetSearchTool({ query: input.message });
+      
+      return { responses: [firstResponse, searchResult] };
+    }
   }
 );
