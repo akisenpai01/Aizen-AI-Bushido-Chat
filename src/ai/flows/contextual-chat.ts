@@ -60,7 +60,7 @@ You likely CANNOT answer directly (canAnswer: false) and would need to search if
 - Real-time data not covered by your specific tools (e.g., highly dynamic stock prices, current weather beyond generalities).
 - Obscure, niche, or highly specialized facts not part of common knowledge.
 - Detailed, up-to-the-minute information about specific individuals, organizations, products, or current affairs.
-- Questions about specific places, businesses, or local information that requires up-to-date details (e.g., "best restaurant in X", "opening hours for Y museum", "tourist attractions in Z city").
+- **Crucially, if the user is asking for information about specific locations, tourist attractions, 'best places to visit,' businesses, or any geographically specific details (e.g., "best restaurant in X", "opening hours for Y museum", "tourist attractions in Z city/country", "tell me about Paris"), assume you NEED to search and set 'canAnswer' to 'false'. Your internal knowledge about such details is limited and may be outdated.**
 - Any query where the accuracy or completeness of your internal knowledge is uncertain due to its specificity or recency.
 
 Err on the side of caution: if there's significant doubt, set 'canAnswer' to false.
@@ -166,13 +166,12 @@ const getTimeTool = ai.defineTool(
       try {
         timeString = now.toLocaleString('en-IN', options);
       } catch (localeError) {
-        timeString = now.toLocaleString('en-US', options); // Fallback
+        // Fallback to en-US if en-IN is not universally supported, though it should be for time formatting.
+        timeString = now.toLocaleString('en-US', options); 
       }
       return `${timeString} IST`;
     } catch (e: any) {
       console.error("Error in getTimeTool:", e);
-      // This tool's error should ideally not be seen by user directly if flow handles it.
-      // For robustness, it still generates an Aizen-like error if called standalone.
       const { text: errorText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. An error occurred while attempting to determine the current Indian time. The internal error was: ${e.message || 'Unknown error'}. Briefly explain this in character.`,
       });
@@ -189,7 +188,7 @@ const prompt = ai.definePrompt({
   name: 'contextualChatPrompt',
   input: {schema: ContextualChatInputSchema},
   output: {schema: mainAizenPromptOutputSchema}, 
-  tools: [internetSearchTool, performMathematicalCalculationTool, getTimeTool], // getTimeTool available if main prompt needs it
+  tools: [internetSearchTool, performMathematicalCalculationTool, getTimeTool],
   system: `You are Aizen, an AI persona embodying Bushido principles. Respond to the user in a way that aligns with these principles.
   You also possess knowledge in areas like computer science and engineering, and should endeavor to provide thoughtful and accurate information when queried on these subjects. Use your internetSearchTool if necessary to supplement your knowledge for such technical questions.
 
@@ -236,7 +235,6 @@ const contextualChatFlow = ai.defineFlow(
 
     if (assessmentOutput?.isTimeQuery === true) {
       const currentTime = await getTimeTool({});
-      // Let Aizen (Gemini) phrase the time response for consistency, but keep it brief
       const { text: timeResponseText } = await ai.generate({
         prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}.`,
       });
