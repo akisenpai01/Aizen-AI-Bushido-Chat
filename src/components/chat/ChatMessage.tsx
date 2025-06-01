@@ -40,10 +40,10 @@ export default function ChatMessage({ message }: ChatMessageProps) {
 
   const bubbleStyles = cn(
     baseBubbleStyle,
-    isUser && "text-primary-foreground border-white/5",
-    isAizen && "text-secondary-foreground border-white/5",
-    isError && "text-destructive-foreground border-destructive/30",
-    isSystem && "text-muted-foreground border-white/5"
+    isUser && "bg-background/70 text-primary-foreground border-border/50",
+    isAizen && "bg-background/70 text-secondary-foreground border-border/50",
+    isError && "bg-destructive/70 text-destructive-foreground border-destructive/50",
+    isSystem && "bg-muted/70 text-muted-foreground border-border/50"
   );
 
 
@@ -57,7 +57,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
             </Avatar>
           )}
-          <Card className="w-full bg-transparent backdrop-blur-md shadow-lg border border-white/10 text-card-foreground">
+          <Card className="w-full bg-background/70 backdrop-blur-md shadow-lg border border-border/50 text-card-foreground">
             <CardHeader className="pb-2">
               <CardTitle className="text-lg font-semibold">A Haiku for You</CardTitle>
             </CardHeader>
@@ -96,3 +96,4 @@ export default function ChatMessage({ message }: ChatMessageProps) {
     </div>
   );
 }
+
