@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -53,12 +54,12 @@
   }
   body {
     @apply text-foreground;
-    background-image: url('https://www.google.com/url?sa=i&url=https%3A%2F%2Fwww.peakpx.com%2Fen%2Fhd-wallpaper-desktop-vcxxq&psig=AOvVaw2hEwtLbFWCySUCHC16Zc6d&ust=1748886401370000&source=images&cd=vfe&opi=89978449&ved=0CBQQjRxqFwoTCNDAhfbj0I0DFQAAAAAdAAAAABAE');
+    background-image: url('https://placehold.co/1920x1080/1A1A1A/666666.png?text=AIZEN_BACKGROUND') data-ai-hint="dark texture";
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
-    background-color: hsl(var(--background)); /* Fallback */
-    min-height: 100vh; /* Ensure full viewport height */
-    margin: 0; /* Remove default margin */
+    background-color: hsl(var(--background)); /* Fallback if image fails */
+    min-height: 100vh; 
+    margin: 0; 
   }
 }
