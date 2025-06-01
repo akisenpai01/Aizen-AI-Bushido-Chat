@@ -54,7 +54,7 @@
   }
   body {
     @apply text-foreground;
-    background-image: url('https://placehold.co/1920x1080/1A1A1A/666666.png?text=AIZEN_BACKGROUND') data-ai-hint="dark texture";
+    background-image: url('https://placehold.co/1920x1080/050505/D3D3D3.png?text=Samurai+Shadow');
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
@@ -63,3 +63,4 @@
     margin: 0; 
   }
 }
+
