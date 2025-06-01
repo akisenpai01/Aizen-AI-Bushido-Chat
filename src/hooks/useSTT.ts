@@ -50,9 +50,7 @@ export function useSTT(): UseSTTReturn {
         };
 
         recognition.onerror = (event) => {
-          if (event.error !== 'no-speech') {
-            console.error('Speech recognition error', event.error);
-          }
+          console.error('Speech recognition error', event.error);
           setError(event.error === 'no-speech' ? 'No speech detected.' :
                    event.error === 'audio-capture' ? 'Microphone problem.' :
                    event.error === 'not-allowed' ? 'Permission denied.' :
@@ -61,7 +59,6 @@ export function useSTT(): UseSTTReturn {
         };
 
         recognition.onend = () => {
-          // When recognition ends for any reason, update the state.
           setIsListening(false);
         };
       } else {
@@ -77,7 +74,7 @@ export function useSTT(): UseSTTReturn {
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
-      setFinalTranscript(''); // Clear previous final transcript
+      setFinalTranscript(''); 
       setInterimTranscript('');
       setError(null);
       try {
