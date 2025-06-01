@@ -55,12 +55,11 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground; /* Default component background and text */
-    background-image: url('https://placehold.co/1920x1080/333333/555555.png') data-ai-hint="dark abstract";
+    @apply text-foreground; /* Default text color */
+    background-image: url('https://placehold.co/1920x1080/222222/444444.png') data-ai-hint="dark abstract";
     background-size: cover;
     background-position: center;
     background-attachment: fixed;
     color: hsl(0, 0%, 95%); /* Main page text color - light for dark background image */
   }
 }
-
