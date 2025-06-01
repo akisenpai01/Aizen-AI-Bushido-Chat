@@ -31,15 +31,17 @@ export default function AizenChatPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
+  const [sttBaseText, setSttBaseText] = useState(''); // To store text before STT starts
+
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
   const { 
     isListening: isSttListening, 
     interimTranscript, 
-    finalTranscript: finalTranscriptSegment, // Renamed to reflect it's a segment
-    startListening, 
-    stopListening, 
+    finalTranscript: finalTranscriptSegment,
+    startListening: sttStartListening, 
+    stopListening: sttStopListening, 
     error: sttError,
     isSupported: isSTTSupported
   } = useSTT();
@@ -75,26 +77,24 @@ export default function AizenChatPage() {
     setIsInitialLoading(false);
   }, []);
 
+  // Combined useEffect to manage input state during STT
   useEffect(() => {
-    if (finalTranscriptSegment) {
-      setInput(prevInput => {
-        const trimmedPrev = prevInput.trim();
-        const trimmedNewSegment = finalTranscriptSegment.trim();
-        if (trimmedNewSegment === '') return trimmedPrev; // If new segment is empty, do nothing
-        return trimmedPrev ? `${trimmedPrev} ${trimmedNewSegment}` : trimmedNewSegment;
-      });
-    }
-  }, [finalTranscriptSegment]);
+    if (isSttListening) {
+      let currentRecognizedText = finalTranscriptSegment || ''; // Full final text from STT for current session
+      let newComposedInput = sttBaseText;
 
-  useEffect(() => {
-    // For live updates of interim transcript in the input field, 
-    // you could display it next to the input or as a placeholder.
-    // For now, we'll rely on finalTranscriptSegment for updating the main input.
-    // If you want the input to show interim results:
-    // if (isSttListening && interimTranscript) {
-    //   setInput(currentFullInput + interimTranscript); // Where currentFullInput is text before interim part
-    // }
-  }, [interimTranscript, isSttListening]);
+      if (currentRecognizedText) {
+        newComposedInput = (sttBaseText ? sttBaseText.trim() + ' ' : '') + currentRecognizedText;
+      }
+      
+      if (interimTranscript) {
+        newComposedInput = (newComposedInput ? newComposedInput.trim() + ' ' : '') + interimTranscript;
+      }
+      setInput(newComposedInput.trim());
+    }
+    // When STT stops, the 'input' field retains the last value set by this effect or user typing.
+  }, [isSttListening, finalTranscriptSegment, interimTranscript, sttBaseText]);
+
 
   useEffect(() => {
     scrollToBottom();
@@ -126,7 +126,6 @@ export default function AizenChatPage() {
     }
   };
 
-
   const addMessage = (messageContent: Omit<ChatMessageType, 'id' | 'timestamp'>) => {
     const newMessage: ChatMessageType = {
       id: Date.now().toString() + Math.random().toString(36).substring(2, 15),
@@ -145,16 +144,15 @@ export default function AizenChatPage() {
     const userMessageContent = input.trim();
     addMessage({ role: 'user', content: userMessageContent });
     setInput(''); // Clear input after sending
+    setSttBaseText(''); // Clear STT base text as well
     setIsSending(true);
     addMessage({ role: 'system', content: "Aizen is meditating..." });
 
-    // Use a temporary messages array that includes the latest user message for the AI
     const messagesForAI = [...messages, { id: 'temp', role: 'user', content: userMessageContent, timestamp: Date.now() }];
-
 
     const result = await handleChatMessageAction({
       message: userMessageContent,
-      chatHistory: messagesForAI, // Send history including the current message
+      chatHistory: messagesForAI,
       userPreferences,
     });
     
@@ -206,6 +204,17 @@ export default function AizenChatPage() {
     toast({ title: "Chat Cleared", description: "Your conversation history has been wiped." });
   };
 
+  const handleStartListening = useCallback(() => {
+    setSttBaseText(input.trim()); // Save current input text, trimmed
+    sttStartListening(); // Call the original startListening from useSTT
+  }, [input, sttStartListening]);
+
+  const handleStopListening = useCallback(() => {
+    sttStopListening(); // Call the original stopListening from useSTT
+    // The input state should already be updated by the useEffect, so no need to setSttBaseText here.
+  }, [sttStopListening]);
+
+
   if (isInitialLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-screen bg-transparent text-foreground p-4 pt-20">
@@ -253,14 +262,13 @@ export default function AizenChatPage() {
       )}
 
       <ChatInput
-        // Display current input + interim transcript if listening
-        input={isSttListening && interimTranscript ? (input.trim() ? input.trim() + ' ' : '') + interimTranscript : input}
+        input={input} // Pass the 'input' state directly
         setInput={setInput}
         onSendMessage={handleSendMessage}
         isSending={isSending}
         isListening={isSttListening}
-        startListening={startListening}
-        stopListening={stopListening}
+        startListening={handleStartListening} // Use wrapped handler
+        stopListening={handleStopListening}   // Use wrapped handler
         isSTTSupported={isSTTSupported}
         sttError={sttError}
       />
@@ -288,3 +296,4 @@ export default function AizenChatPage() {
     </div>
   );
 }
+    
