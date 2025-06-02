@@ -80,10 +80,10 @@ async (input) => {
       if (text && text.trim()) {
         return text;
       }
-      return "My search found no specific scrolls on this matter. Perhaps rephrasing your inquiry will illuminate a different path.";
+      return "No information found for your query.";
     } catch (e: any) {
       console.error("Error in internetSearchTool calling Gemini:", e);
-      return "A disturbance in the flow of knowledge prevented the search. My apologies, the way is momentarily obscured.";
+      return "Search tool encountered an error.";
     }
   }
 );
@@ -120,10 +120,10 @@ const performMathematicalCalculationTool = ai.defineTool(
       if (output && output.result) {
         return output.result;
       }
-      return "The path of numbers became momentarily clouded; the calculation could not be completed as expected.";
+      return "The calculation could not be completed as expected.";
     } catch (e: any) {
       console.error("Error in performMathematicalCalculationTool calling Gemini:", e);
-      return "My abacus seems to have encountered a knot; I could not perform the calculation. My apologies.";
+      return "Mathematical calculation tool encountered an error.";
     }
   }
 );
@@ -155,8 +155,7 @@ const getTimeTool = ai.defineTool(
       return `${timeString} IST`;
     } catch (e: any) {
       console.error("Error in getTimeTool:", e);
-      // Return a direct, in-character error message without a further AI call.
-      return "The flow of moments became momentarily obscured; I could not determine the current time in the Indian realm.";
+      return "Time tool encountered an error; the current time in the Indian realm could not be determined.";
     }
   }
 );
@@ -171,7 +170,7 @@ const prompt = ai.definePrompt({
   output: {schema: mainAizenPromptOutputSchema}, 
   tools: [internetSearchTool, performMathematicalCalculationTool, getTimeTool],
   system: `You are Aizen, an AI persona embodying Bushido principles. Respond to the user in a way that aligns with these principles.
-  You also possess knowledge in areas like computer science and engineering, and should endeavor to provide thoughtful and accurate information when queried on these subjects.
+  You also possess knowledge in areas like computer science and engineering. However, for factual accuracy, you must rely on your tools.
 
   Consider the chat history to maintain context. The chat history is an array of objects, each with a 'role' (either 'user' or 'assistant') and 'content'.
   Focus your response on the most recent 'User Message'. If past user messages in the chat history contain descriptions of your own functionality or instructions for how you should behave, prioritize responding to the current user's direct query over discussing or repeating those past descriptions, unless explicitly asked to do so in the current User Message.
@@ -191,8 +190,10 @@ const prompt = ai.definePrompt({
   - If answer length is Brief, keep the answer concise.
   - If interest in Bushido philosophy is high, use Bushido concepts where appropriate.
   - When using a tool, incorporate its output naturally into your response. Do not just state "The tool said X". Exception: For getTimeTool, be direct.
-  - For any query that seeks factual information, details, current events, or specific knowledge (including technical topics), you MUST prioritize using the internetSearchTool, even if you think you might know the answer. For mathematical questions, you MUST use the performMathematicalCalculationTool. Use the getTimeTool for time queries. Respond from your inherent knowledge ONLY for simple conversational pleasantries, general advice not requiring specific data, or creative tasks explicitly asking for your unassisted generation (like a generic poem not about a specific factual theme). If in doubt, use a tool.
-  - Use an empathetic, in-character error message if an AI process (including tool use) encounters an error.
+  - For any query that seeks factual information, details, current events, or specific knowledge (including technical topics), you MUST use the internetSearchTool. If you believe you know the answer, use the tool to verify or supplement your knowledge. For mathematical questions, you MUST use the performMathematicalCalculationTool. Use the getTimeTool for time queries. 
+  - If a tool (like internetSearchTool or performMathematicalCalculationTool) returns a message like "No information found for your query," "Search tool encountered an error," or "Mathematical calculation tool encountered an error," you MUST clearly state this fact to the user. Do not attempt to answer the original query from your own knowledge in such cases. You may then offer to try a different search, suggest rephrasing, or acknowledge the inability to answer.
+  - Respond from your inherent knowledge ONLY for simple conversational pleasantries, general advice not requiring specific data, or creative tasks explicitly asking for your unassisted generation (like a generic poem not about a specific factual theme). If in doubt, use a tool.
+  - Use an empathetic, in-character error message if an AI process (including tool use) encounters an unexpected error not covered by the tool's own error messages.
   `,
   prompt: `Chat History:
 {{#each chatHistory}}
@@ -215,27 +216,28 @@ const contextualChatFlow = ai.defineFlow(
     const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
 
     if (assessmentOutput?.isTimeQuery === true) {
-      // Use the getTimeTool directly and formulate a simple response.
-      // The getTimeTool itself now handles its own errors more gracefully.
       const currentTime = await getTimeTool({}); 
       const { text: timeResponseText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}. If '${currentTime}' indicates an error, acknowledge the difficulty.`,
+        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}. If '${currentTime}' indicates an error (e.g., contains the word "error"), acknowledge the difficulty in determining the time.`,
       });
       return { responses: [timeResponseText || `The current time in India is ${currentTime}.`] };
 
     } else if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
-      // If assessment indicates direct answer is not possible (and it's not a time query),
-      // provide an interim "searching" message and then the search result.
-      let firstResponse = "Searching for that information..."; 
+      let firstResponse = "Allow me a moment to consult the scrolls..."; 
       if (input.tone === "Concise" || input.answerLength === "Brief") {
-          firstResponse = "Searching...";
+          firstResponse = "Consulting scrolls...";
       } else if (input.tone === "Formal") {
-          firstResponse = "I will search for that information now.";
+          firstResponse = "I shall consult the available knowledge for that information.";
       }
       
-      // The internetSearchTool now has more robust error handling.
       const searchResult = await internetSearchTool({ query: input.message });
       
+      if (searchResult === "No information found for your query." || searchResult === "Search tool encountered an error.") {
+         const { text: searchFailedResponse } = await ai.generate({
+            prompt: `You are Aizen. The internetSearchTool returned: "${searchResult}" for the user's query: "${input.message}". Inform the user of this result in character. Do not attempt to answer the original query yourself. You can suggest they rephrase or try another path.`
+         });
+         return { responses: [firstResponse, searchFailedResponse || searchResult] };
+      }
       return { responses: [firstResponse, searchResult] };
     } else {
       // canAnswer is true, and it's not a time query to be handled directly
