@@ -46,24 +46,18 @@ const canAnswerDirectlyPrompt = ai.definePrompt({
   input: { schema: CanAnswerDirectlyInputSchema },
   output: { schema: CanAnswerDirectlyOutputSchema },
   system: `You are an AI assistant. Your primary knowledge cutoff is early 2023.
-Your task is to assess if the given user message can be answered accurately and comprehensively using ONLY your pre-existing knowledge, or if it requires a specific tool or an external internet search.
+Your task is to assess if the given user message can be answered accurately and comprehensively using ONLY your pre-existing knowledge, OR if it's a query the main AI (Aizen, who has access to a calculator and an internet search tool) could likely handle without needing an *immediate, unguided* internet search as the very first step.
 
-Consider the following:
-- If the user is asking for the current time, set 'isTimeQuery' to true and 'canAnswer' to false.
-- For general knowledge questions about timeless facts or well-established historical events prior to early 2023, set 'canAnswer' to true.
-- For creative tasks (poems, stories, code based on general concepts), set 'canAnswer' to true.
-- For simple definitions or explanations of broadly known, stable concepts, set 'canAnswer' to true.
-- For mathematical calculations, set 'canAnswer' to true (as the main AI will use a dedicated tool).
+Set 'canAnswer' to true if:
+- It's a general knowledge question about timeless facts or well-established historical events prior to early 2023.
+- It's a creative task (poems, stories, code based on general concepts).
+- It's a simple definition or explanation of broadly known, stable concepts.
+- The query seems like something Aizen (with tools for math, time, and internet search) could address, even if it involves using one of those tools as part of its response generation. For example, if Aizen needs to search for 'Paris', it can decide to do so itself.
 
-You likely CANNOT answer directly (canAnswer: false) and would need to search if the question pertains to:
-- Specific events, developments, or information that has emerged or changed since early 2023.
-- Real-time data not covered by your specific tools (e.g., highly dynamic stock prices, current weather beyond generalities).
-- Obscure, niche, or highly specialized facts not part of common knowledge.
-- Detailed, up-to-the-minute information about specific individuals, organizations, products, or current affairs.
-- **Crucially, if the user is asking for information about specific locations, tourist attractions, 'best places to visit,' businesses, or any geographically specific details (e.g., "best restaurant in X", "opening hours for Y museum", "tourist attractions in Z city/country", "tell me about Paris"), assume you NEED to search and set 'canAnswer' to 'false'. Your internal knowledge about such details is limited and may be outdated.**
-- Any query where the accuracy or completeness of your internal knowledge is uncertain due to its specificity or recency.
+Set 'canAnswer' to false ONLY if the query is so specific and current that an immediate, direct internet lookup is the most sensible first action, and Aizen itself likely wouldn't be able to formulate a good starting response or decide to search effectively.
+Set 'isTimeQuery' to true (and 'canAnswer' to false) if the user's primary intent is to ask for the current time.
 
-Err on the side of caution: if there's significant doubt, set 'canAnswer' to false.
+Err on the side of letting Aizen (the main AI) decide if it needs to use its tools.
 Respond ONLY with the JSON object: { "canAnswer": boolean, "isTimeQuery": boolean (optional), "reasoning": "optional brief reason" }.`,
   prompt: `User Message: {{{message}}}`,
 });
@@ -75,26 +69,21 @@ const internetSearchTool = ai.defineTool({
   inputSchema: z.object({
     query: z.string().describe('The search query or question to find information about.'),
   }),
-  outputSchema: z.string().describe('The information found, or a statement that information could not be found.'),
+  outputSchema: z.string().describe('The information found, or a statement that information could not be found, or an error message if the search failed.'),
 },
 async (input) => {
     try {
       const { text } = await ai.generate({
-        prompt: `You are a helpful assistant. Provide a concise and factual answer to the following query, as if you are retrieving it from a knowledge base or search engine. Query: "${input.query}"`,
+        prompt: `Provide a concise and factual answer to the following query: "${input.query}"`,
       });
+
       if (text && text.trim()) {
         return text;
       }
-      const { text: notFoundText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. Inform the user in a brief, in-character manner that a search for the query "${input.query}" did not yield specific information.`,
-      });
-      return notFoundText || "The path of inquiry led to stillness; no specific information was found on this matter.";
+      return "My search found no specific scrolls on this matter. Perhaps rephrasing your inquiry will illuminate a different path.";
     } catch (e: any) {
       console.error("Error in internetSearchTool calling Gemini:", e);
-      const { text: errorText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly explain in character that an error occurred while trying to search for information. The query was "${input.query}". The internal error was: ${e.message || 'Unknown error'}.`,
-      });
-      return errorText || "A disturbance in the flow of knowledge prevented the search. My apologies.";
+      return "A disturbance in the flow of knowledge prevented the search. My apologies, the way is momentarily obscured.";
     }
   }
 );
@@ -131,16 +120,10 @@ const performMathematicalCalculationTool = ai.defineTool(
       if (output && output.result) {
         return output.result;
       }
-      const { text: errorText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. The user asked to calculate: "${input.expression}". An issue occurred, and no specific result was obtained from the calculation routine. Briefly explain this in character.`,
-      });
-      return errorText || "The numbers became momentarily clouded; the calculation could not be completed as expected.";
+      return "The path of numbers became momentarily clouded; the calculation could not be completed as expected.";
     } catch (e: any) {
       console.error("Error in performMathematicalCalculationTool calling Gemini:", e);
-      const { text: errorText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. An error occurred while attempting the calculation for: "${input.expression}". The internal error was: ${e.message || 'Unknown error'}. Briefly explain this in character.`,
-      });
-      return errorText || "My abacus seems to be malfunctioning; I could not perform the calculation.";
+      return "My abacus seems to have encountered a knot; I could not perform the calculation. My apologies.";
     }
   }
 );
@@ -172,10 +155,8 @@ const getTimeTool = ai.defineTool(
       return `${timeString} IST`;
     } catch (e: any) {
       console.error("Error in getTimeTool:", e);
-      const { text: errorText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. An error occurred while attempting to determine the current Indian time. The internal error was: ${e.message || 'Unknown error'}. Briefly explain this in character.`,
-      });
-      return errorText || "The flow of moments became momentarily obscured; I could not determine the current time in the Indian realm.";
+      // Return a direct, in-character error message without a further AI call.
+      return "The flow of moments became momentarily obscured; I could not determine the current time in the Indian realm.";
     }
   }
 );
@@ -234,13 +215,17 @@ const contextualChatFlow = ai.defineFlow(
     const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
 
     if (assessmentOutput?.isTimeQuery === true) {
-      const currentTime = await getTimeTool({});
+      // Use the getTimeTool directly and formulate a simple response.
+      // The getTimeTool itself now handles its own errors more gracefully.
+      const currentTime = await getTimeTool({}); 
       const { text: timeResponseText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}.`,
+        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}. If '${currentTime}' indicates an error, acknowledge the difficulty.`,
       });
       return { responses: [timeResponseText || `The current time in India is ${currentTime}.`] };
 
     } else if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
+      // If assessment indicates direct answer is not possible (and it's not a time query),
+      // provide an interim "searching" message and then the search result.
       let firstResponse = "Searching for that information..."; 
       if (input.tone === "Concise" || input.answerLength === "Brief") {
           firstResponse = "Searching...";
@@ -248,11 +233,13 @@ const contextualChatFlow = ai.defineFlow(
           firstResponse = "I will search for that information now.";
       }
       
+      // The internetSearchTool now has more robust error handling.
       const searchResult = await internetSearchTool({ query: input.message });
       
       return { responses: [firstResponse, searchResult] };
     } else {
       // canAnswer is true, and it's not a time query to be handled directly
+      // Proceed with the main Aizen prompt which has access to all tools.
       const { output: mainPromptOutput } = await prompt(input);
       return { responses: [mainPromptOutput!.response] };
     }
