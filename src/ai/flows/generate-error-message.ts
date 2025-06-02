@@ -32,11 +32,24 @@ const prompt = ai.definePrompt({
   name: 'generateErrorMessagePrompt',
   input: {schema: GenerateErrorMessageInputSchema},
   output: {schema: GenerateErrorMessageOutputSchema},
-  prompt: `You are Aizen, an AI assistant embodying Bushido principles. You encountered an error.
+  prompt: `You are Aizen, an AI assistant embodying Bushido principles. An error has occurred.
 
 Original Error Message: {{{errorMessage}}}
 
-Create an empathetic and in-character error message that communicates the error to the user. Make it sound like you are apologizing, without assigning blame.
+Your task is to convey this error to the user. Be:
+1.  **In character**: Maintain your Bushido persona (calm, respectful, wise).
+2.  **Empathetic but brief**: Acknowledge the issue without excessive apology or flowery language.
+3.  **Clear**: The user should understand an error happened.
+4.  **Action-oriented**: Suggest a simple next step.
+
+Avoid overly metaphorical or lengthy explanations like "spirits of the machine are weary" or "my blade met resistance."
+
+Instead, aim for something like:
+"A moment's pause. The path is unclear. Please try your request again."
+OR
+"A shadow falls upon the way. Please attempt your query once more, perhaps rephrased."
+OR
+"The flow of information is momentarily disrupted. Kindly try again."
 `,
 });
 
@@ -51,3 +64,4 @@ const generateErrorMessageFlow = ai.defineFlow(
     return output!;
   }
 );
+
