@@ -21,9 +21,8 @@ const ContextualChatInputSchema = z.object({
 });
 export type ContextualChatInput = z.infer<typeof ContextualChatInputSchema>;
 
-// Updated Output Schema
 const ContextualChatOutputSchema = z.object({
-  responses: z.array(z.string()).describe('One or more responses from Aizen. If Aizen needs to search for an unknown answer, the first response will indicate it is searching, and the second will contain the result.'),
+  responses: z.array(z.string()).describe('One or more responses from Aizen.'),
 });
 export type ContextualChatOutput = z.infer<typeof ContextualChatOutputSchema>;
 
@@ -31,34 +30,21 @@ export async function contextualChat(input: ContextualChatInput): Promise<Contex
   return contextualChatFlow(input);
 }
 
-// Helper prompt for initial assessment
-const CanAnswerDirectlyInputSchema = z.object({
-  message: z.string(),
+// New focused prompt to determine if the query is primarily about time
+const IsTimeQueryInputSchema = z.object({
+  message: z.string().describe('The user message.'),
 });
-const CanAnswerDirectlyOutputSchema = z.object({
-  canAnswer: z.boolean().describe("True if the AI can answer confidently without external search or specific tools like getTimeTool, false otherwise."),
-  isTimeQuery: z.boolean().optional().describe("True if the user's primary intent is to ask for the current time."),
+const IsTimeQueryOutputSchema = z.object({
+  isTimeQuery: z.boolean().describe("True if the user's primary intent is to ask for the current time, false otherwise."),
   reasoning: z.string().optional().describe("Brief reason if it cannot answer or needs search/tool."),
 });
 
-const canAnswerDirectlyPrompt = ai.definePrompt({
-  name: 'canAnswerDirectlyPrompt',
-  input: { schema: CanAnswerDirectlyInputSchema },
-  output: { schema: CanAnswerDirectlyOutputSchema },
-  system: `You are an AI assistant. Your primary knowledge cutoff is early 2023.
-Your task is to assess if the given user message can be answered accurately and comprehensively using ONLY your pre-existing knowledge, OR if it's a query the main AI (Aizen, who has access to a calculator and an internet search tool) could likely handle without needing an *immediate, unguided* internet search as the very first step.
-
-Set 'canAnswer' to true if:
-- It's a general knowledge question about timeless facts or well-established historical events prior to early 2023.
-- It's a creative task (poems, stories, code based on general concepts).
-- It's a simple definition or explanation of broadly known, stable concepts.
-- The query seems like something Aizen (with tools for math, time, and internet search) could address, even if it involves using one of those tools as part of its response generation. For example, if Aizen needs to search for 'Paris', it can decide to do so itself.
-
-Set 'canAnswer' to false ONLY if the query is so specific and current that an immediate, direct internet lookup is the most sensible first action, and Aizen itself likely wouldn't be able to formulate a good starting response or decide to search effectively.
-Set 'isTimeQuery' to true (and 'canAnswer' to false) if the user's primary intent is to ask for the current time.
-
-Err on the side of letting Aizen (the main AI) decide if it needs to use its tools.
-Respond ONLY with the JSON object: { "canAnswer": boolean, "isTimeQuery": boolean (optional), "reasoning": "optional brief reason" }.`,
+const isTimeQueryPrompt = ai.definePrompt({
+  name: 'isTimeQueryPrompt',
+  input: { schema: IsTimeQueryInputSchema },
+  output: { schema: IsTimeQueryOutputSchema },
+  system: `You are an AI assistant. Your task is to assess if the user's *primary intent* in the given message is to ask for the current time.
+  Respond ONLY with the JSON object: { "isTimeQuery": boolean, "reasoning": "optional brief reason" }.`,
   prompt: `User Message: {{{message}}}`,
 });
 
@@ -80,10 +66,10 @@ async (input) => {
       if (text && text.trim()) {
         return text;
       }
-      return "No information found for your query.";
+      return "The search tool did not find information for your query.";
     } catch (e: any) {
       console.error("Error in internetSearchTool calling Gemini:", e);
-      return "Search tool encountered an error.";
+      return "The search tool encountered an error.";
     }
   }
 );
@@ -149,13 +135,12 @@ const getTimeTool = ai.defineTool(
       try {
         timeString = now.toLocaleString('en-IN', options);
       } catch (localeError) {
-        // Fallback to en-US if en-IN is not universally supported, though it should be for time formatting.
         timeString = now.toLocaleString('en-US', options); 
       }
       return `${timeString} IST`;
     } catch (e: any) {
       console.error("Error in getTimeTool:", e);
-      return "Time tool encountered an error; the current time in the Indian realm could not be determined.";
+      return "Time tool encountered an error; the current time could not be determined.";
     }
   }
 );
@@ -210,41 +195,27 @@ const contextualChatFlow = ai.defineFlow(
     outputSchema: ContextualChatOutputSchema, 
   },
   async (input) => {
-    const assessmentInput: z.infer<typeof CanAnswerDirectlyInputSchema> = { 
+    const timeQueryCheckInput: z.infer<typeof IsTimeQueryInputSchema> = { 
       message: input.message 
     };
-    const { output: assessmentOutput } = await canAnswerDirectlyPrompt(assessmentInput);
+    const { output: timeQueryAssessment } = await isTimeQueryPrompt(timeQueryCheckInput);
 
-    if (assessmentOutput?.isTimeQuery === true) {
+    if (timeQueryAssessment?.isTimeQuery === true) {
       const currentTime = await getTimeTool({}); 
       const { text: timeResponseText } = await ai.generate({
-        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}. If '${currentTime}' indicates an error (e.g., contains the word "error"), acknowledge the difficulty in determining the time.`,
+        prompt: `You are Aizen, an AI embodying Bushido principles. Briefly and directly state that the current time in India is ${currentTime}. If '${currentTime}' indicates an error (e.g., contains the word "error" or "could not be determined"), acknowledge the difficulty in determining the time.`,
       });
       return { responses: [timeResponseText || `The current time in India is ${currentTime}.`] };
-
-    } else if (assessmentOutput?.canAnswer === false || !assessmentOutput) {
-      let firstResponse = "Allow me a moment to consult the scrolls..."; 
-      if (input.tone === "Concise" || input.answerLength === "Brief") {
-          firstResponse = "Consulting scrolls...";
-      } else if (input.tone === "Formal") {
-          firstResponse = "I shall consult the available knowledge for that information.";
-      }
-      
-      const searchResult = await internetSearchTool({ query: input.message });
-      
-      if (searchResult === "No information found for your query." || searchResult === "Search tool encountered an error.") {
-         const { text: searchFailedResponse } = await ai.generate({
-            prompt: `You are Aizen. The internetSearchTool returned: "${searchResult}" for the user's query: "${input.message}". Inform the user of this result in character. Do not attempt to answer the original query yourself. You can suggest they rephrase or try another path.`
-         });
-         return { responses: [firstResponse, searchFailedResponse || searchResult] };
-      }
-      return { responses: [firstResponse, searchResult] };
     } else {
-      // canAnswer is true, and it's not a time query to be handled directly
-      // Proceed with the main Aizen prompt which has access to all tools.
+      // For all other queries, proceed with the main Aizen prompt which has access to all tools.
       const { output: mainPromptOutput } = await prompt(input);
-      return { responses: [mainPromptOutput!.response] };
+      if (mainPromptOutput && mainPromptOutput.response) {
+        return { responses: [mainPromptOutput.response] };
+      } else {
+        // Fallback if main prompt fails to produce an output
+        console.error("Main Aizen prompt did not return a valid output for input:", input);
+        return { responses: ["My apologies, I encountered an unexpected difficulty in formulating a response. Please try rephrasing your query."] };
+      }
     }
   }
 );
-
